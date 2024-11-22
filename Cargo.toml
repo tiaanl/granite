@@ -1,0 +1,14 @@
+[package]
+name = "granite"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bytemuck = { version = "1.20", default-features = false, features = ["derive"] }
+glam = { version = "0.29", default-features = false, features = [
+    "bytemuck",
+    "std",
+] }
+pollster = { version = "0.4", default-features = false }
+wgpu = { version = "23.0", default-features = false }
+winit = { version = "0.30", default-features = false, features = ["rwh_06"] }
