@@ -1,6 +1,12 @@
-use granite::prelude::*;
+use granite_wgpu::{glam::*, prelude::*};
 
 const SHADER: &str = r"
+struct Camera {
+    proj: mat4x4<f32>,
+    view: mat4x4<f32>,
+}
+@group(0) @binding(0) var<uniform> u_camera: Camera;
+
 struct VertexOut {
     @builtin(position) ndc: vec4<f32>,
     @location(0) color: vec4<f32>,
@@ -15,7 +21,7 @@ struct VertexOut {
     let b = f32(index == 2u);
 
     return VertexOut(
-        vec4(x, y, 0.0, 1.0),
+        u_camera.proj * u_camera.view * vec4(x, y, 0.0, 1.0),
         vec4(r, g, b, 1.0),
     );
 }
@@ -26,17 +32,30 @@ struct VertexOut {
 ";
 
 struct Minimal {
+    camera: Camera,
+    gpu_camera: GpuCamera,
     pipeline: wgpu::RenderPipeline,
 }
 
 impl Minimal {
     fn new(surface: &Surface, renderer: &Renderer) -> Self {
+        let camera = Camera::new(Vec3::new(0.0, 0.0, 0.5), Quat::IDENTITY);
+        let gpu_camera = GpuCamera::new(&renderer.device);
+        let pipeline =
+            Self::create_render_pipeline(surface, renderer, &gpu_camera.bind_group_layout);
+
         Self {
-            pipeline: Self::create_render_pipeline(surface, renderer),
+            camera,
+            gpu_camera,
+            pipeline,
         }
     }
 
-    fn create_render_pipeline(surface: &Surface, renderer: &Renderer) -> wgpu::RenderPipeline {
+    fn create_render_pipeline(
+        surface: &Surface,
+        renderer: &Renderer,
+        camera_layout: &wgpu::BindGroupLayout,
+    ) -> wgpu::RenderPipeline {
         let module = renderer
             .device
             .create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -44,11 +63,19 @@ impl Minimal {
                 source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(SHADER)),
             });
 
+        let layout = renderer
+            .device
+            .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: None,
+                bind_group_layouts: &[camera_layout],
+                push_constant_ranges: &[],
+            });
+
         renderer
             .device
             .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                 label: None,
-                layout: None,
+                layout: Some(&layout),
                 vertex: wgpu::VertexState {
                     module: &module,
                     entry_point: None,
@@ -71,19 +98,34 @@ impl Minimal {
 }
 
 impl Scene for Minimal {
-    fn render(&mut self, _surface: &Surface, view: &mut Frame) {
-        let mut render_pass = view.encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: &view.view,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                    store: wgpu::StoreOp::Store,
-                },
-            })],
-            ..Default::default()
-        });
+    fn update(&mut self, input: &InputState, time_delta: f32) {
+        if input.key_pressed(KeyCode::KeyW) {
+            self.camera.move_forward(-time_delta * 0.1);
+        }
+        if input.key_pressed(KeyCode::KeyS) {
+            self.camera.move_forward(time_delta * 0.1);
+        }
+    }
 
+    fn render(&mut self, _surface: &Surface, frame: &mut Frame) {
+        self.gpu_camera
+            .upload(&frame.renderer.queue, &self.camera.calculate_matrices());
+
+        let mut render_pass = frame
+            .encoder
+            .begin_render_pass(&wgpu::RenderPassDescriptor {
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &frame.view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                ..Default::default()
+            });
+
+        render_pass.set_bind_group(0, &self.gpu_camera.bind_group, &[]);
         render_pass.set_pipeline(&self.pipeline);
         render_pass.draw(0..3, 0..1);
     }
@@ -98,5 +140,5 @@ fn main() {
             Minimal::new(surface, renderer)
         }
     }
-    granite::run(NewMinimal);
+    granite_wgpu::run(NewMinimal);
 }

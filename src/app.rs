@@ -65,7 +65,7 @@ where
 
         let window = Arc::new(
             event_loop
-                .create_window(WindowAttributes::default().with_title("wGPU Mechinical Arm"))
+                .create_window(WindowAttributes::default())
                 .unwrap(),
         );
 

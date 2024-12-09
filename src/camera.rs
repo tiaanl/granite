@@ -10,9 +10,6 @@ pub struct Camera {
 
     /// The aspect ratio of the camera. Normally dependant on the aspect ratio of the window.
     pub aspect: f32,
-
-    /// The calculated projection matrix.
-    matrices: CameraMatrices,
 }
 
 impl Camera {
@@ -21,7 +18,6 @@ impl Camera {
             translation,
             rotation,
             aspect: 1.0,
-            matrices: CameraMatrices::default(),
         }
     }
 
@@ -41,12 +37,11 @@ impl Camera {
     }
 
     /// Update the internal matrices.
-    pub fn update(&mut self) {
-        // TODO: Only update matrices if the inputs changed?
-        self.matrices.projection =
-            Mat4::perspective_rh(45.0_f32.to_radians(), self.aspect, 0.1, 10.0);
-        self.matrices.view =
-            Mat4::from_rotation_translation(self.rotation, self.translation).inverse();
+    pub fn calculate_matrices(&self) -> CameraMatrices {
+        let projection = Mat4::perspective_rh(45.0_f32.to_radians(), self.aspect, 0.1, 10.0);
+        let view = Mat4::from_rotation_translation(self.rotation, self.translation).inverse();
+
+        CameraMatrices { projection, view }
     }
 }
 
@@ -102,7 +97,7 @@ impl GpuCamera {
         }
     }
 
-    pub fn upload(&self, queue: &wgpu::Queue, camera: &Camera) {
-        queue.write_buffer(&self.buffer, 0, bytemuck::cast_slice(&[camera.matrices]));
+    pub fn upload(&self, queue: &wgpu::Queue, matrices: &CameraMatrices) {
+        queue.write_buffer(&self.buffer, 0, bytemuck::cast_slice(&[*matrices]));
     }
 }
