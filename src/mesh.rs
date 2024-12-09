@@ -66,7 +66,7 @@ pub trait RenderPassMeshExt {
     fn draw_mesh(&mut self, mesh: &GpuMesh);
 }
 
-impl<'encoder> RenderPassMeshExt for wgpu::RenderPass<'encoder> {
+impl RenderPassMeshExt for wgpu::RenderPass<'_> {
     fn draw_mesh(&mut self, mesh: &GpuMesh) {
         self.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
         if let Some(ref index_buffer) = mesh.index_buffer {

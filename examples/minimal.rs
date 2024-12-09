@@ -1,4 +1,4 @@
-use granite::{scene::Scene, Engine};
+use granite::prelude::*;
 
 const SHADER: &str = r"
 struct VertexOut {
@@ -30,22 +30,22 @@ struct Minimal {
 }
 
 impl Minimal {
-    fn new(engine: &Engine) -> Self {
+    fn new(surface: &Surface, renderer: &Renderer) -> Self {
         Self {
-            pipeline: Self::create_render_pipeline(engine),
+            pipeline: Self::create_render_pipeline(surface, renderer),
         }
     }
 
-    fn create_render_pipeline(engine: &Engine) -> wgpu::RenderPipeline {
-        let module = engine
-            .device()
+    fn create_render_pipeline(surface: &Surface, renderer: &Renderer) -> wgpu::RenderPipeline {
+        let module = renderer
+            .device
             .create_shader_module(wgpu::ShaderModuleDescriptor {
                 label: None,
                 source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(SHADER)),
             });
 
-        engine
-            .device()
+        renderer
+            .device
             .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                 label: None,
                 layout: None,
@@ -62,21 +62,19 @@ impl Minimal {
                     module: &module,
                     entry_point: None,
                     compilation_options: wgpu::PipelineCompilationOptions::default(),
-                    targets: &[Some(engine.surface_format().into())],
+                    targets: &[Some(surface.format.into())],
                 }),
                 multiview: None,
                 cache: None,
             })
     }
+}
 
-    fn create_render_pass<'a>(
-        &'a self,
-        encoder: &'a mut wgpu::CommandEncoder,
-        view: &'a wgpu::TextureView,
-    ) -> wgpu::RenderPass<'a> {
-        encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+impl Scene for Minimal {
+    fn render(&mut self, _surface: &Surface, view: &mut Frame) {
+        let mut render_pass = view.encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view,
+                view: &view.view,
                 resolve_target: None,
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
@@ -84,20 +82,21 @@ impl Minimal {
                 },
             })],
             ..Default::default()
-        })
-    }
-}
+        });
 
-impl Scene for Minimal {
-    fn render(&self, encoder: &mut wgpu::CommandEncoder, view: &wgpu::TextureView) {
-        let mut render_pass = self.create_render_pass(encoder, view);
         render_pass.set_pipeline(&self.pipeline);
         render_pass.draw(0..3, 0..1);
     }
 }
 
 fn main() {
-    Engine::start(|engine| {
-        engine.switch_scene(Box::new(Minimal::new(engine)));
-    });
+    struct NewMinimal;
+    impl NewScene for NewMinimal {
+        type Target = Minimal;
+
+        fn new(&self, surface: &Surface, renderer: &Renderer) -> Self::Target {
+            Minimal::new(surface, renderer)
+        }
+    }
+    granite::run(NewMinimal);
 }
