@@ -13,33 +13,33 @@ use crate::{
     scene::{Scene, SceneEvent},
 };
 
-pub trait NewScene {
+pub trait SceneBuilder {
     type Target: Scene;
 
-    fn new(&self, surface: &Surface, renderer: &Renderer) -> Self::Target;
+    fn build(&self, surface: &Surface, renderer: &Renderer) -> Self::Target;
 }
 
-impl<T, F> NewScene for F
+impl<T, F> SceneBuilder for F
 where
     T: Scene,
     F: Fn(&Surface, &Renderer) -> T,
 {
     type Target = T;
 
-    fn new(&self, surface: &Surface, renderer: &Renderer) -> Self::Target {
+    fn build(&self, surface: &Surface, renderer: &Renderer) -> Self::Target {
         self(surface, renderer)
     }
 }
 
-/// The global state of the engine. Implements the [ApplicationHandler] for winit to drive the main
-/// window.
-pub enum App<S, New>
+/// The global state of the engine. Implements the [ApplicationHandler] for [winit] to drive the
+/// main window.
+pub enum App<S, Builder>
 where
     S: Scene,
-    New: NewScene<Target = S>,
+    Builder: SceneBuilder<Target = S>,
 {
     /// The application is in a suspended state.
-    Suspended { new: New },
+    Suspended { new: Builder },
     /// The application was resumed and is not actively running.
     Resumed {
         /// A handle to the main window runing our renderer.
@@ -49,14 +49,14 @@ where
         /// Keep track of the input state.
         input: InputState,
         /// The use [Scene] we are interacting with.
-        scene: New::Target,
+        scene: Builder::Target,
     },
 }
 
-impl<S, New> ApplicationHandler for App<S, New>
+impl<S, Builder> ApplicationHandler for App<S, Builder>
 where
     S: Scene,
-    New: NewScene<Target = S>,
+    Builder: SceneBuilder<Target = S>,
 {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         let App::Suspended { new } = self else {
@@ -70,9 +70,9 @@ where
         );
 
         let renderer = Renderer::new(Arc::clone(&window));
-        let s = renderer.surface_inner.read().unwrap().surface();
+        let surface = renderer.surface_inner.lock().surface();
 
-        let scene = new.new(&s, &renderer);
+        let scene = new.build(&surface, &renderer);
 
         *self = Self::Resumed {
             window,
@@ -125,34 +125,38 @@ where
 
                 input.reset_current_frame();
 
-                let surface_texture = renderer.surface_inner.read().unwrap().get_current();
-                let view = surface_texture
-                    .texture
-                    .create_view(&wgpu::TextureViewDescriptor::default());
+                {
+                    let surface_inner = renderer.surface_inner.lock();
+                    let surface = surface_inner.surface();
 
-                let encoder =
+                    let surface_texture = surface_inner.get_current();
+                    let view = surface_texture
+                        .texture
+                        .create_view(&wgpu::TextureViewDescriptor::default());
+
+                    let encoder =
+                        renderer
+                            .device
+                            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                                label: Some("granite_command_encoder"),
+                            });
+
+                    let mut frame = Frame {
+                        renderer,
+                        encoder,
+                        view,
+                    };
+
+                    scene.render(&surface, &mut frame);
+
                     renderer
-                        .device
-                        .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                            label: Some("main_command_encoder"),
-                        });
+                        .queue
+                        .submit(std::iter::once(frame.encoder.finish()));
 
-                let mut frame = Frame {
-                    renderer,
-                    encoder,
-                    view,
-                };
+                    surface_texture.present();
 
-                scene.render(
-                    &renderer.surface_inner.read().unwrap().surface(),
-                    &mut frame,
-                );
-
-                renderer
-                    .queue
-                    .submit(std::iter::once(frame.encoder.finish()));
-
-                surface_texture.present();
+                    // surface_inner unlocked here.
+                }
 
                 window.request_redraw();
             }

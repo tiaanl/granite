@@ -1,18 +1,19 @@
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
+use parking_lot::Mutex;
 use winit::{dpi::PhysicalSize, window::Window};
 
 pub struct Renderer {
     pub device: Arc<wgpu::Device>,
     pub queue: Arc<wgpu::Queue>,
-    pub(crate) surface_inner: Arc<RwLock<SurfaceInner>>,
+    pub(crate) surface_inner: Arc<Mutex<SurfaceInner>>,
 }
 
 impl Renderer {
     pub fn new(window: Arc<Window>) -> Self {
         use pollster::block_on;
 
-        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::default());
+        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor::default());
 
         let adapter =
             block_on(instance.request_adapter(&wgpu::RequestAdapterOptionsBase::default()))
@@ -25,7 +26,7 @@ impl Renderer {
         let device = Arc::new(device);
         let queue = Arc::new(queue);
 
-        let surface = Arc::new(RwLock::new(
+        let surface = Arc::new(Mutex::new(
             SurfaceInner::new(window, &instance, &adapter, &device)
                 .expect("Could not create surface."),
         ));
@@ -38,7 +39,7 @@ impl Renderer {
     }
 
     pub(crate) fn resize(&mut self, size: PhysicalSize<u32>) {
-        let mut surface = self.surface_inner.write().expect("No access to surface!");
+        let mut surface = self.surface_inner.lock();
         surface.resize(self.device.as_ref(), size);
     }
 }

@@ -1,27 +1,24 @@
-use granite_wgpu::{glam::*, prelude::*};
+use granite::{glam::*, prelude::*};
+use wgpu::util::DeviceExt;
 
 const SHADER: &str = r"
-struct Camera {
-    proj: mat4x4<f32>,
-    view: mat4x4<f32>,
-}
-@group(0) @binding(0) var<uniform> u_camera: Camera;
+@group(0) @binding(0) var<uniform> scale: vec4<f32>;
 
 struct VertexOut {
-    @builtin(position) ndc: vec4<f32>,
+    @builtin(position) clip_position: vec4<f32>,
     @location(0) color: vec4<f32>,
 }
 
 @vertex fn vertex(@builtin(vertex_index) index: u32) -> VertexOut {
-    let x = f32(1 - i32(index)) * 0.5;
-    let y = f32(i32(index & 1u) * 2 - 1) * 0.5;
+    let x = f32(1 - i32(index)) * 0.5 * scale.x;
+    let y = f32(i32(index & 1u) * 2 - 1) * 0.5 * scale.x;
 
     let r = f32(index == 0u);
     let g = f32(index == 1u);
     let b = f32(index == 2u);
 
     return VertexOut(
-        u_camera.proj * u_camera.view * vec4(x, y, 0.0, 1.0),
+        vec4(x, y, 0.0, 1.0),
         vec4(r, g, b, 1.0),
     );
 }
@@ -32,29 +29,74 @@ struct VertexOut {
 ";
 
 struct Minimal {
-    camera: Camera,
-    gpu_camera: GpuCamera,
+    /// The render pipeline used for the triangle.
     pipeline: wgpu::RenderPipeline,
+
+    /// Buffer holding the uniform data.
+    uniforms_buffer: wgpu::Buffer,
+
+    /// The bind group used to reference the uniforms buffer.
+    uniforms_bind_group: wgpu::BindGroup,
+
+    /// A dynamic scale value applied to the triangle.
+    scale: f32,
 }
 
 impl Minimal {
     fn new(surface: &Surface, renderer: &Renderer) -> Self {
-        let camera = Camera::new(Vec3::new(0.0, 0.0, 0.5), Quat::IDENTITY);
-        let gpu_camera = GpuCamera::new(&renderer.device);
-        let pipeline =
-            Self::create_render_pipeline(surface, renderer, &gpu_camera.bind_group_layout);
+        let scale = 1.0;
+
+        let uniforms_bind_group_layout =
+            renderer
+                .device
+                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    label: Some("uniforms_bind_group_layout"),
+                    entries: &[wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::VERTEX,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    }],
+                });
+
+        let uniforms_buffer =
+            renderer
+                .device
+                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("uniforms_bind_group"),
+                    contents: bytemuck::cast_slice(&[Vec4::new(scale, 0.0, 0.0, 0.0)]),
+                    usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                });
+
+        let uniforms_bind_group = renderer
+            .device
+            .create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("uniforms_bind_group"),
+                layout: &uniforms_bind_group_layout,
+                entries: &[wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: uniforms_buffer.as_entire_binding(),
+                }],
+            });
+
+        let pipeline = Self::create_render_pipeline(surface, renderer, &uniforms_bind_group_layout);
 
         Self {
-            camera,
-            gpu_camera,
             pipeline,
+            uniforms_buffer,
+            uniforms_bind_group,
+            scale,
         }
     }
 
     fn create_render_pipeline(
         surface: &Surface,
         renderer: &Renderer,
-        camera_layout: &wgpu::BindGroupLayout,
+        uniforms_bind_group_layout: &wgpu::BindGroupLayout,
     ) -> wgpu::RenderPipeline {
         let module = renderer
             .device
@@ -67,7 +109,7 @@ impl Minimal {
             .device
             .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: None,
-                bind_group_layouts: &[camera_layout],
+                bind_group_layouts: &[uniforms_bind_group_layout],
                 push_constant_ranges: &[],
             });
 
@@ -95,21 +137,27 @@ impl Minimal {
                 cache: None,
             })
     }
+
+    fn upload_uniform(&mut self, renderer: &Renderer) {
+        let data = Vec4::new(self.scale, 0.0, 0.0, 1.0);
+        renderer
+            .queue
+            .write_buffer(&self.uniforms_buffer, 0, bytemuck::cast_slice(&[data]));
+    }
 }
 
 impl Scene for Minimal {
-    fn update(&mut self, input: &InputState, time_delta: f32) {
+    fn update(&mut self, input: &InputState, _time_delta: f32) {
         if input.key_pressed(KeyCode::KeyW) {
-            self.camera.move_forward(-time_delta * 0.1);
+            self.scale = (self.scale - 0.1).max(0.1);
         }
         if input.key_pressed(KeyCode::KeyS) {
-            self.camera.move_forward(time_delta * 0.1);
+            self.scale = (self.scale + 0.1).min(2.0);
         }
     }
 
     fn render(&mut self, _surface: &Surface, frame: &mut Frame) {
-        self.gpu_camera
-            .upload(&frame.renderer.queue, &self.camera.calculate_matrices());
+        self.upload_uniform(frame.renderer);
 
         let mut render_pass = frame
             .encoder
@@ -117,28 +165,17 @@ impl Scene for Minimal {
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &frame.view,
                     resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                        store: wgpu::StoreOp::Store,
-                    },
+                    ops: wgpu::Operations::default(),
                 })],
                 ..Default::default()
             });
 
-        render_pass.set_bind_group(0, &self.gpu_camera.bind_group, &[]);
         render_pass.set_pipeline(&self.pipeline);
+        render_pass.set_bind_group(0, &self.uniforms_bind_group, &[]);
         render_pass.draw(0..3, 0..1);
     }
 }
 
-fn main() {
-    struct NewMinimal;
-    impl NewScene for NewMinimal {
-        type Target = Minimal;
-
-        fn new(&self, surface: &Surface, renderer: &Renderer) -> Self::Target {
-            Minimal::new(surface, renderer)
-        }
-    }
-    granite_wgpu::run(NewMinimal);
+fn main() -> Result<(), winit::error::EventLoopError> {
+    granite::run(Minimal::new)
 }
