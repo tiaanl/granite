@@ -1,12 +1,11 @@
 use std::sync::Arc;
 
-use parking_lot::Mutex;
 use winit::{dpi::PhysicalSize, window::Window};
 
 pub struct Renderer {
     pub device: Arc<wgpu::Device>,
     pub queue: Arc<wgpu::Queue>,
-    pub(crate) surface_inner: Arc<Mutex<SurfaceInner>>,
+    pub(crate) surface_inner: SurfaceInner,
 }
 
 impl Renderer {
@@ -26,35 +25,56 @@ impl Renderer {
         let device = Arc::new(device);
         let queue = Arc::new(queue);
 
-        let surface = Arc::new(Mutex::new(
-            SurfaceInner::new(window, &instance, &adapter, &device)
-                .expect("Could not create surface."),
-        ));
+        let surface_inner = SurfaceInner::new(window, &instance, &adapter, &device)
+            .expect("Could not create surface.");
 
         Self {
             device,
             queue,
-            surface_inner: surface,
+            surface_inner,
         }
     }
 
     pub(crate) fn resize(&mut self, size: PhysicalSize<u32>) {
-        let mut surface = self.surface_inner.lock();
-        surface.resize(self.device.as_ref(), size);
+        self.surface_inner.resize(&self.device, size);
     }
 }
 
-/// A thin object passed to the [Scene::render] function.
-pub struct Surface {
+/// Details of a [Surface].
+pub struct SurfaceConfig {
     pub format: wgpu::TextureFormat,
     pub width: u32,
     pub height: u32,
 }
 
+impl From<&wgpu::SurfaceConfiguration> for SurfaceConfig {
+    fn from(value: &wgpu::SurfaceConfiguration) -> Self {
+        Self {
+            format: value.format,
+            width: value.width,
+            height: value.height,
+        }
+    }
+}
+
+/// A thin object passed to describe the window's surface.
+pub struct Surface {
+    texture: wgpu::SurfaceTexture,
+    pub view: wgpu::TextureView,
+    pub config: SurfaceConfig,
+}
+
+impl Surface {
+    /// Consume the [Surface] and present it to the screen.
+    pub(crate) fn present(self) {
+        self.texture.present();
+    }
+}
+
 /// A [wgpu::Surface] and it current configuration.
 pub(crate) struct SurfaceInner {
     surface: wgpu::Surface<'static>,
-    config: wgpu::SurfaceConfiguration,
+    pub config: wgpu::SurfaceConfiguration,
 }
 
 impl SurfaceInner {
@@ -82,22 +102,24 @@ impl SurfaceInner {
         self.surface.configure(device, &self.config);
     }
 
-    pub(crate) fn get_current(&self) -> wgpu::SurfaceTexture {
-        self.surface.get_current_texture().unwrap()
-    }
+    pub(crate) fn get_current_surface(&self) -> Surface {
+        let texture = self
+            .surface
+            .get_current_texture()
+            .expect("Could not get current surface.");
 
-    pub(crate) fn surface(&self) -> Surface {
+        let view = texture
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+
         Surface {
-            format: self.config.format,
-            width: self.config.width,
-            height: self.config.height,
+            texture,
+            view,
+            config: SurfaceConfig {
+                format: self.config.format,
+                width: self.config.width,
+                height: self.config.height,
+            },
         }
     }
-}
-
-/// Holds some data about the current frame about to be rendered to by the [Scene].
-pub struct Frame<'r> {
-    pub renderer: &'r Renderer,
-    pub encoder: wgpu::CommandEncoder,
-    pub view: wgpu::TextureView,
 }

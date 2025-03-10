@@ -17,12 +17,12 @@ pub mod prelude {
 }
 
 #[inline]
-pub fn run<S, New>(new: New) -> Result<(), winit::error::EventLoopError>
+pub fn run<Scene, Builder>(builder: Builder) -> Result<(), winit::error::EventLoopError>
 where
-    S: scene::Scene,
-    New: app::SceneBuilder<Target = S>,
+    Scene: scene::Scene,
+    Builder: app::SceneBuilder<Target = Scene>,
 {
     winit::event_loop::EventLoop::new()
         .expect("could not create event loop")
-        .run_app(&mut app::App::Suspended { new })
+        .run_app(&mut app::App::Suspended { new: builder })
 }

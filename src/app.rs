@@ -9,25 +9,26 @@ use winit::{
 
 use crate::{
     input::InputState,
-    renderer::{Frame, Renderer, Surface},
+    prelude::SurfaceConfig,
+    renderer::Renderer,
     scene::{Scene, SceneEvent},
 };
 
 pub trait SceneBuilder {
     type Target: Scene;
 
-    fn build(&self, surface: &Surface, renderer: &Renderer) -> Self::Target;
+    fn build(&self, renderer: &Renderer, surface_config: &SurfaceConfig) -> Self::Target;
 }
 
 impl<T, F> SceneBuilder for F
 where
     T: Scene,
-    F: Fn(&Surface, &Renderer) -> T,
+    F: Fn(&Renderer, &SurfaceConfig) -> T,
 {
     type Target = T;
 
-    fn build(&self, surface: &Surface, renderer: &Renderer) -> Self::Target {
-        self(surface, renderer)
+    fn build(&self, renderer: &Renderer, surface: &SurfaceConfig) -> Self::Target {
+        self(renderer, surface)
     }
 }
 
@@ -70,9 +71,8 @@ where
         );
 
         let renderer = Renderer::new(Arc::clone(&window));
-        let surface = renderer.surface_inner.lock().surface();
-
-        let scene = new.build(&surface, &renderer);
+        let surface_config = SurfaceConfig::from(&renderer.surface_inner.config);
+        let scene = new.build(&renderer, &surface_config);
 
         *self = Self::Resumed {
             window,
@@ -126,36 +126,9 @@ where
                 input.reset_current_frame();
 
                 {
-                    let surface_inner = renderer.surface_inner.lock();
-                    let surface = surface_inner.surface();
-
-                    let surface_texture = surface_inner.get_current();
-                    let view = surface_texture
-                        .texture
-                        .create_view(&wgpu::TextureViewDescriptor::default());
-
-                    let encoder =
-                        renderer
-                            .device
-                            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                                label: Some("granite_command_encoder"),
-                            });
-
-                    let mut frame = Frame {
-                        renderer,
-                        encoder,
-                        view,
-                    };
-
-                    scene.render(&surface, &mut frame);
-
-                    renderer
-                        .queue
-                        .submit(std::iter::once(frame.encoder.finish()));
-
-                    surface_texture.present();
-
-                    // surface_inner unlocked here.
+                    let surface = renderer.surface_inner.get_current_surface();
+                    renderer.queue.submit(scene.render(renderer, &surface));
+                    surface.present();
                 }
 
                 window.request_redraw();

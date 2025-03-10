@@ -431,7 +431,6 @@ version = "0.1.0"
 dependencies = [
  "bytemuck",
  "glam",
- "parking_lot",
  "pollster",
  "wgpu",
  "winit",

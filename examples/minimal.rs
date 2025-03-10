@@ -43,7 +43,7 @@ struct Minimal {
 }
 
 impl Minimal {
-    fn new(surface: &Surface, renderer: &Renderer) -> Self {
+    fn new(renderer: &Renderer, surface_config: &SurfaceConfig) -> Self {
         let scale = 1.0;
 
         let uniforms_bind_group_layout =
@@ -83,7 +83,46 @@ impl Minimal {
                 }],
             });
 
-        let pipeline = Self::create_render_pipeline(surface, renderer, &uniforms_bind_group_layout);
+        let pipeline = {
+            let module = renderer
+                .device
+                .create_shader_module(wgpu::ShaderModuleDescriptor {
+                    label: None,
+                    source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(SHADER)),
+                });
+
+            let layout = renderer
+                .device
+                .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                    label: None,
+                    bind_group_layouts: &[&uniforms_bind_group_layout],
+                    push_constant_ranges: &[],
+                });
+
+            renderer
+                .device
+                .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                    label: None,
+                    layout: Some(&layout),
+                    vertex: wgpu::VertexState {
+                        module: &module,
+                        entry_point: None,
+                        compilation_options: wgpu::PipelineCompilationOptions::default(),
+                        buffers: &[],
+                    },
+                    primitive: wgpu::PrimitiveState::default(),
+                    depth_stencil: None,
+                    multisample: wgpu::MultisampleState::default(),
+                    fragment: Some(wgpu::FragmentState {
+                        module: &module,
+                        entry_point: None,
+                        compilation_options: wgpu::PipelineCompilationOptions::default(),
+                        targets: &[Some(surface_config.format.into())],
+                    }),
+                    multiview: None,
+                    cache: None,
+                })
+        };
 
         Self {
             pipeline,
@@ -91,51 +130,6 @@ impl Minimal {
             uniforms_bind_group,
             scale,
         }
-    }
-
-    fn create_render_pipeline(
-        surface: &Surface,
-        renderer: &Renderer,
-        uniforms_bind_group_layout: &wgpu::BindGroupLayout,
-    ) -> wgpu::RenderPipeline {
-        let module = renderer
-            .device
-            .create_shader_module(wgpu::ShaderModuleDescriptor {
-                label: None,
-                source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(SHADER)),
-            });
-
-        let layout = renderer
-            .device
-            .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: None,
-                bind_group_layouts: &[uniforms_bind_group_layout],
-                push_constant_ranges: &[],
-            });
-
-        renderer
-            .device
-            .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                label: None,
-                layout: Some(&layout),
-                vertex: wgpu::VertexState {
-                    module: &module,
-                    entry_point: None,
-                    compilation_options: wgpu::PipelineCompilationOptions::default(),
-                    buffers: &[],
-                },
-                primitive: wgpu::PrimitiveState::default(),
-                depth_stencil: None,
-                multisample: wgpu::MultisampleState::default(),
-                fragment: Some(wgpu::FragmentState {
-                    module: &module,
-                    entry_point: None,
-                    compilation_options: wgpu::PipelineCompilationOptions::default(),
-                    targets: &[Some(surface.format.into())],
-                }),
-                multiview: None,
-                cache: None,
-            })
     }
 
     fn upload_uniform(&mut self, renderer: &Renderer) {
@@ -156,23 +150,35 @@ impl Scene for Minimal {
         }
     }
 
-    fn render(&mut self, _surface: &Surface, frame: &mut Frame) {
-        self.upload_uniform(frame.renderer);
+    fn render(
+        &mut self,
+        renderer: &Renderer,
+        surface: &Surface,
+    ) -> impl Iterator<Item = wgpu::CommandBuffer> {
+        self.upload_uniform(renderer);
 
-        let mut render_pass = frame
-            .encoder
-            .begin_render_pass(&wgpu::RenderPassDescriptor {
+        let mut encoder = renderer
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("minimal_command_encoder"),
+            });
+
+        {
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &frame.view,
+                    view: &surface.view,
                     resolve_target: None,
                     ops: wgpu::Operations::default(),
                 })],
                 ..Default::default()
             });
 
-        render_pass.set_pipeline(&self.pipeline);
-        render_pass.set_bind_group(0, &self.uniforms_bind_group, &[]);
-        render_pass.draw(0..3, 0..1);
+            render_pass.set_pipeline(&self.pipeline);
+            render_pass.set_bind_group(0, &self.uniforms_bind_group, &[]);
+            render_pass.draw(0..3, 0..1);
+        }
+
+        std::iter::once(encoder.finish())
     }
 }
 
