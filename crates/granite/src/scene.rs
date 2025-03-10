@@ -1,6 +1,6 @@
 use crate::{
     input::InputState,
-    prelude::{Renderer, Surface, SurfaceConfig},
+    prelude::{Renderer, Surface},
 };
 
 pub enum SceneEvent {
@@ -8,8 +8,13 @@ pub enum SceneEvent {
 }
 
 pub trait Scene {
+    #[allow(unused_variables)]
     fn event(&mut self, event: &SceneEvent) {}
+
+    #[allow(unused_variables)]
     fn update(&mut self, input: &InputState, time_delta: f32) {}
+
+    #[must_use]
     fn render(
         &mut self,
         renderer: &Renderer,
