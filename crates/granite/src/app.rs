@@ -40,7 +40,7 @@ where
     Builder: SceneBuilder<Target = S>,
 {
     /// The application is in a suspended state.
-    Suspended { new: Builder },
+    Suspended { builder: Builder },
     /// The application was resumed and is not actively running.
     Resumed {
         /// A handle to the main window runing our renderer.
@@ -60,7 +60,7 @@ where
     Builder: SceneBuilder<Target = S>,
 {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        let App::Suspended { new } = self else {
+        let App::Suspended { builder } = self else {
             panic!("App already resumed.");
         };
 
@@ -72,7 +72,7 @@ where
 
         let renderer = Renderer::new(Arc::clone(&window));
         let surface_config = SurfaceConfig::from(&renderer.surface_inner.config);
-        let scene = new.build(&renderer, &surface_config);
+        let scene = builder.build(&renderer, &surface_config);
 
         *self = Self::Resumed {
             window,

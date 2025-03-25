@@ -24,5 +24,5 @@ where
 {
     winit::event_loop::EventLoop::new()
         .expect("could not create event loop")
-        .run_app(&mut app::App::Suspended { new: builder })
+        .run_app(&mut app::App::Suspended { builder })
 }
