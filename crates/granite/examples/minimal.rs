@@ -168,7 +168,15 @@ impl Scene for Minimal {
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &surface.view,
                     resolve_target: None,
-                    ops: wgpu::Operations::default(),
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color {
+                            r: 0.1,
+                            g: 0.2,
+                            b: 0.3,
+                            a: 1.0,
+                        }),
+                        store: wgpu::StoreOp::Store,
+                    },
                 })],
                 ..Default::default()
             });
