@@ -51,6 +51,8 @@ where
         input: InputState,
         /// The use [Scene] we are interacting with.
         scene: Builder::Target,
+        /// The last [Instance] that a frame was rendered to the display.
+        last_frame_time: std::time::Instant,
     },
 }
 
@@ -79,6 +81,7 @@ where
             renderer,
             input: InputState::default(),
             scene,
+            last_frame_time: std::time::Instant::now(),
         }
     }
 
@@ -93,6 +96,7 @@ where
             renderer,
             input,
             scene,
+            last_frame_time,
             ..
         } = self
         else {
@@ -121,7 +125,9 @@ where
             }
 
             WindowEvent::RedrawRequested => {
-                scene.update(input, 1.0);
+                // The amount of seconds elapsed since the last frame was presented.
+                let delta_time = last_frame_time.elapsed().as_secs_f32() * 60.0;
+                scene.update(input, delta_time);
 
                 input.reset_current_frame();
 
@@ -130,6 +136,8 @@ where
                     renderer.queue.submit(scene.render(renderer, &surface));
                     surface.present();
                 }
+
+                *last_frame_time = std::time::Instant::now();
 
                 window.request_redraw();
             }

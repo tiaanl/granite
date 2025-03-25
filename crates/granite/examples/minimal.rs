@@ -141,12 +141,12 @@ impl Minimal {
 }
 
 impl Scene for Minimal {
-    fn update(&mut self, input: &InputState, _time_delta: f32) {
+    fn update(&mut self, input: &InputState, time_delta: f32) {
         if input.key_pressed(KeyCode::KeyW) {
-            self.scale = (self.scale - 0.1).max(0.1);
+            self.scale = (self.scale - time_delta).max(0.1);
         }
         if input.key_pressed(KeyCode::KeyS) {
-            self.scale = (self.scale + 0.1).min(2.0);
+            self.scale = (self.scale + time_delta).min(2.0);
         }
     }
 
