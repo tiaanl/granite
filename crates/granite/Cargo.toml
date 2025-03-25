@@ -4,10 +4,10 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-glam = { version = "0.30", default-features = false, features = ["bytemuck", "std"] }
-pollster = { version = "0.4", default-features = false }
-wgpu = { version = "24.0", default-features = false, features = ["wgsl"] }
-winit = { version = "0.30", default-features = false, features = ["rwh_06"] }
+glam = { version = "0.30", features = ["bytemuck"] }
+pollster = "0.4"
+wgpu = "24.0"
+winit = "0.30"
 
 [dev-dependencies]
 bytemuck = { version = "1.22", default-features = false }
