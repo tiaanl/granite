@@ -10,4 +10,4 @@ wgpu = "24.0"
 winit = "0.30"
 
 [dev-dependencies]
-bytemuck = { version = "1.22", default-features = false }
+bytemuck = { version = "1.22", features = ["derive"] }
