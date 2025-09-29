@@ -9,18 +9,18 @@ pub struct Renderer {
 }
 
 impl Renderer {
-    pub fn new(window: Arc<Window>) -> Self {
-        use pollster::block_on;
-
+    pub async fn new(window: Arc<Window>) -> Self {
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor::default());
 
-        let adapter =
-            block_on(instance.request_adapter(&wgpu::RequestAdapterOptionsBase::default()))
-                .expect("Could not get adapter.");
+        let adapter = instance
+            .request_adapter(&wgpu::RequestAdapterOptionsBase::default())
+            .await
+            .expect("Could not get adapter.");
 
-        let (device, queue) =
-            block_on(adapter.request_device(&wgpu::DeviceDescriptor::default(), None))
-                .expect("Could not request device.");
+        let (device, queue) = adapter
+            .request_device(&wgpu::DeviceDescriptor::default())
+            .await
+            .expect("Could not request device.");
 
         let device = Arc::new(device);
         let queue = Arc::new(queue);

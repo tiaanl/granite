@@ -217,6 +217,7 @@ impl Scene for Spline {
                 label: Some("spline_render_pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &surface.view,
+                    depth_slice: None,
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {

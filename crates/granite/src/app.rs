@@ -34,6 +34,9 @@ where
 
 /// The global state of the engine. Implements the [ApplicationHandler] for [winit] to drive the
 /// main window.
+// Allow the clippy large_enum_variant, becuase we only have one instance of [App] and we use the
+// enum as a "initialized" flag only.
+#[allow(clippy::large_enum_variant)]
 pub enum App<S, Builder>
 where
     S: Scene,
@@ -72,7 +75,7 @@ where
                 .unwrap(),
         );
 
-        let renderer = Renderer::new(Arc::clone(&window));
+        let renderer = pollster::block_on(Renderer::new(Arc::clone(&window)));
         let surface_config = SurfaceConfig::from(&renderer.surface_inner.config);
         let scene = builder.build(&renderer, &surface_config);
 
