@@ -87,11 +87,9 @@ impl SurfaceInner {
         let PhysicalSize { width, height } = window.inner_size();
 
         let surface = instance.create_surface(window)?;
-        let mut config = surface
+        let config = surface
             .get_default_config(adapter, width, height)
             .expect("Could not get surface configuration.");
-
-        config.present_mode = wgpu::PresentMode::AutoVsync;
 
         surface.configure(device, &config);
 

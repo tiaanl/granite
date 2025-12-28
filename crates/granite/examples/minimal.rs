@@ -96,7 +96,7 @@ impl Minimal {
                 .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                     label: None,
                     bind_group_layouts: &[&uniforms_bind_group_layout],
-                    push_constant_ranges: &[],
+                    immediate_size: 0,
                 });
 
             renderer
@@ -119,7 +119,7 @@ impl Minimal {
                         compilation_options: wgpu::PipelineCompilationOptions::default(),
                         targets: &[Some(surface_config.format.into())],
                     }),
-                    multiview: None,
+                    multiview_mask: None,
                     cache: None,
                 })
         };
