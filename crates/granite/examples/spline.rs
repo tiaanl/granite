@@ -110,7 +110,7 @@ impl Spline {
                 .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                     label: Some("spline_pipeline_layout"),
                     bind_group_layouts: &[&uniforms_bind_group_layout],
-                    push_constant_ranges: &[],
+                    immediate_size: 0,
                 });
 
             renderer
@@ -155,7 +155,7 @@ impl Spline {
                             write_mask: wgpu::ColorWrites::ALL,
                         })],
                     }),
-                    multiview: None,
+                    multiview_mask: None,
                     cache: None,
                 })
         };
