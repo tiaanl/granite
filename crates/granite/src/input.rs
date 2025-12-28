@@ -1,8 +1,8 @@
 use std::collections::HashSet;
 
-use glam::Vec2;
+use glam::IVec2;
 use winit::{
-    event::{ElementState, WindowEvent},
+    event::{ElementState, MouseScrollDelta, WindowEvent},
     keyboard::PhysicalKey,
 };
 
@@ -13,8 +13,9 @@ pub use winit::keyboard::KeyCode;
 pub struct InputState {
     key_pressed: HashSet<KeyCode>,
     mouse_pressed: HashSet<MouseButton>,
-    last_mouse_position: Vec2,
-    mouse_delta: Vec2,
+    last_mouse_position: IVec2,
+    mouse_delta: IVec2,
+    mouse_wheel_delta: f32,
 }
 
 impl InputState {
@@ -41,9 +42,16 @@ impl InputState {
             }
 
             WindowEvent::CursorMoved { position, .. } => {
-                let current = Vec2::new(position.x as f32, position.y as f32);
+                let current = IVec2::new(position.x.round() as i32, position.y.round() as i32);
                 self.mouse_delta = current - self.last_mouse_position;
                 self.last_mouse_position = current;
+            }
+
+            WindowEvent::MouseWheel { delta, .. } => {
+                self.mouse_wheel_delta = match delta {
+                    MouseScrollDelta::LineDelta(_, y) => y as f32,
+                    MouseScrollDelta::PixelDelta(physical_position) => physical_position.y as f32,
+                }
             }
 
             _ => {}
@@ -52,20 +60,34 @@ impl InputState {
 
     /// Reset data being tracked per frame.
     pub(crate) fn reset_current_frame(&mut self) {
-        self.mouse_delta = Vec2::ZERO;
+        self.mouse_delta = IVec2::ZERO;
+        self.mouse_wheel_delta = 0.0;
     }
 }
 
 impl InputState {
+    #[inline]
     pub fn key_pressed(&self, key: KeyCode) -> bool {
         self.key_pressed.contains(&key)
     }
 
+    #[inline]
+    pub fn mouse_position(&self) -> IVec2 {
+        self.last_mouse_position
+    }
+
+    #[inline]
     pub fn mouse_pressed(&self, button: MouseButton) -> bool {
         self.mouse_pressed.contains(&button)
     }
 
-    pub fn mouse_delta(&self) -> Vec2 {
+    #[inline]
+    pub fn mouse_delta(&self) -> IVec2 {
         self.mouse_delta
+    }
+
+    #[inline]
+    pub fn mouse_wheel_delta(&self) -> f32 {
+        self.mouse_wheel_delta
     }
 }
