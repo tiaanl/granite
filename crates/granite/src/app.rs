@@ -10,7 +10,7 @@ use winit::{
 use crate::{
     input::InputState,
     prelude::SurfaceConfig,
-    renderer::RenderContext,
+    render_context::RenderContext,
     scene::{Scene, SceneEvent},
 };
 
