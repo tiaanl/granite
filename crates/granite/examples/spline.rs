@@ -13,7 +13,7 @@ struct Spline {
 }
 
 impl Spline {
-    fn new(renderer: &Renderer, surface_config: &SurfaceConfig) -> Self {
+    fn new(renderer: &RenderContext, surface_config: &SurfaceConfig) -> Self {
         let (vertex_buffer, vertex_count) = {
             let points = vec![
                 Vec2::new(100.0, 100.0),
@@ -194,7 +194,7 @@ impl Scene for Spline {
 
     fn render(
         &mut self,
-        renderer: &Renderer,
+        renderer: &RenderContext,
         surface: &Surface,
     ) -> impl Iterator<Item = wgpu::CommandBuffer> {
         if let Some(window_size) = self.window_size.take() {

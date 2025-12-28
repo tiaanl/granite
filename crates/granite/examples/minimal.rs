@@ -43,7 +43,7 @@ struct Minimal {
 }
 
 impl Minimal {
-    fn new(renderer: &Renderer, surface_config: &SurfaceConfig) -> Self {
+    fn new(renderer: &RenderContext, surface_config: &SurfaceConfig) -> Self {
         let scale = 1.0;
 
         let uniforms_bind_group_layout =
@@ -132,7 +132,7 @@ impl Minimal {
         }
     }
 
-    fn upload_uniform(&mut self, renderer: &Renderer) {
+    fn upload_uniform(&mut self, renderer: &RenderContext) {
         let data = Vec4::new(self.scale, 0.0, 0.0, 1.0);
         renderer
             .queue
@@ -152,7 +152,7 @@ impl Scene for Minimal {
 
     fn render(
         &mut self,
-        renderer: &Renderer,
+        renderer: &RenderContext,
         surface: &Surface,
     ) -> impl Iterator<Item = wgpu::CommandBuffer> {
         self.upload_uniform(renderer);

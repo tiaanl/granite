@@ -2,13 +2,14 @@ use std::sync::Arc;
 
 use winit::{dpi::PhysicalSize, window::Window};
 
-pub struct Renderer {
-    pub device: Arc<wgpu::Device>,
-    pub queue: Arc<wgpu::Queue>,
+/// Holds the [wgpu::Device] and [wgpu::Queue] used for interacting with the GPU.
+pub struct RenderContext {
+    pub device: wgpu::Device,
+    pub queue: wgpu::Queue,
     pub(crate) surface_inner: SurfaceInner,
 }
 
-impl Renderer {
+impl RenderContext {
     pub async fn new(window: Arc<Window>) -> Self {
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor::default());
 
@@ -21,9 +22,6 @@ impl Renderer {
             .request_device(&wgpu::DeviceDescriptor::default())
             .await
             .expect("Could not request device.");
-
-        let device = Arc::new(device);
-        let queue = Arc::new(queue);
 
         let surface_inner = SurfaceInner::new(window, &instance, &adapter, &device)
             .expect("Could not create surface.");

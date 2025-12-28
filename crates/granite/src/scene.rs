@@ -1,6 +1,6 @@
 use crate::{
     input::InputState,
-    prelude::{Renderer, Surface},
+    prelude::{RenderContext, Surface},
 };
 
 pub enum SceneEvent {
@@ -17,7 +17,7 @@ pub trait Scene {
     #[must_use]
     fn render(
         &mut self,
-        renderer: &Renderer,
+        renderer: &RenderContext,
         surface: &Surface,
     ) -> impl Iterator<Item = wgpu::CommandBuffer>;
 }

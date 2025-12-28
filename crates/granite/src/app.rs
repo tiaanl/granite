@@ -10,24 +10,24 @@ use winit::{
 use crate::{
     input::InputState,
     prelude::SurfaceConfig,
-    renderer::Renderer,
+    renderer::RenderContext,
     scene::{Scene, SceneEvent},
 };
 
 pub trait SceneBuilder {
     type Target: Scene;
 
-    fn build(&self, renderer: &Renderer, surface_config: &SurfaceConfig) -> Self::Target;
+    fn build(&self, renderer: &RenderContext, surface_config: &SurfaceConfig) -> Self::Target;
 }
 
 impl<T, F> SceneBuilder for F
 where
     T: Scene,
-    F: Fn(&Renderer, &SurfaceConfig) -> T,
+    F: Fn(&RenderContext, &SurfaceConfig) -> T,
 {
     type Target = T;
 
-    fn build(&self, renderer: &Renderer, surface: &SurfaceConfig) -> Self::Target {
+    fn build(&self, renderer: &RenderContext, surface: &SurfaceConfig) -> Self::Target {
         self(renderer, surface)
     }
 }
@@ -49,7 +49,7 @@ where
         /// A handle to the main window runing our renderer.
         window: Arc<Window>,
         /// The renderer.
-        renderer: Renderer,
+        renderer: RenderContext,
         /// Keep track of the input state.
         input: InputState,
         /// The use [Scene] we are interacting with.
@@ -75,7 +75,7 @@ where
                 .unwrap(),
         );
 
-        let renderer = pollster::block_on(Renderer::new(Arc::clone(&window)));
+        let renderer = pollster::block_on(RenderContext::new(Arc::clone(&window)));
         let surface_config = SurfaceConfig::from(&renderer.surface_inner.config);
         let scene = builder.build(&renderer, &surface_config);
 
