@@ -96,7 +96,7 @@ where
     ) {
         let Self::Resumed {
             window,
-            renderer,
+            renderer: render_context,
             input,
             scene,
             last_frame_time,
@@ -118,7 +118,7 @@ where
             }
 
             WindowEvent::Resized(size) => {
-                renderer.resize(size);
+                render_context.resize(size);
 
                 let event = SceneEvent::WindowResized {
                     width: size.width,
@@ -129,14 +129,16 @@ where
 
             WindowEvent::RedrawRequested => {
                 // The amount of seconds elapsed since the last frame was presented.
-                let delta_time = last_frame_time.elapsed().as_secs_f32() * 60.0;
+                let delta_time = last_frame_time.elapsed().as_secs_f32();
                 scene.update(input, delta_time);
 
                 input.reset_current_frame();
 
                 {
-                    let surface = renderer.surface_inner.get_current_surface();
-                    renderer.queue.submit(scene.render(renderer, &surface));
+                    let surface = render_context.surface_inner.get_current_surface();
+                    render_context
+                        .queue
+                        .submit(scene.render(render_context, &surface));
                     surface.present();
                 }
 
