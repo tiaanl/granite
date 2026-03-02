@@ -1,6 +1,7 @@
 mod app;
+mod common;
 mod input;
-mod render_context;
+mod renderer;
 mod scene;
 
 // Re-export
@@ -10,7 +11,7 @@ pub use wgpu;
 pub mod prelude {
     pub use super::app::*;
     pub use super::input::*;
-    pub use super::render_context::*;
+    pub use super::renderer::*;
     pub use super::scene::*;
 }
 

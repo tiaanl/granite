@@ -1,23 +1,18 @@
-use crate::{
-    input::InputState,
-    prelude::{RenderContext, Surface},
-};
+use crate::{input::InputState, renderer::Frame};
 
 pub enum SceneEvent {
     WindowResized { width: u32, height: u32 },
 }
 
 pub trait Scene {
-    #[allow(unused_variables)]
-    fn event(&mut self, event: &SceneEvent) {}
+    fn event(&mut self, event: &SceneEvent) {
+        let _ = event;
+    }
 
-    #[allow(unused_variables)]
-    fn update(&mut self, input: &InputState, time_delta: f32) {}
+    fn update(&mut self, input: &InputState, delta_time: f32) {
+        let _ = input;
+        let _ = delta_time;
+    }
 
-    #[must_use]
-    fn render(
-        &mut self,
-        renderer: &RenderContext,
-        surface: &Surface,
-    ) -> impl Iterator<Item = wgpu::CommandBuffer>;
+    fn render(&mut self, frame: &mut Frame);
 }

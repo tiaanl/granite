@@ -1,26 +1,22 @@
-use granite::{glam::*, prelude::*};
-use wgpu::util::DeviceExt;
+use glam::{Vec2, Vec4};
+use granite::prelude::*;
 
 const SHADER: &str = r"
-@group(0) @binding(0) var<uniform> scale: vec4<f32>;
+struct VertexIn {
+    @location(0) position: vec4<f32>,
+    @location(1) color: vec4<f32>,
+}
 
 struct VertexOut {
     @builtin(position) clip_position: vec4<f32>,
     @location(0) color: vec4<f32>,
 }
 
-@vertex fn vertex(@builtin(vertex_index) index: u32) -> VertexOut {
-    let x = f32(1 - i32(index)) * 0.5 * scale.x;
-    let y = f32(i32(index & 1u) * 2 - 1) * 0.5 * scale.x;
+@vertex fn vertex(vertex: VertexIn) -> VertexOut {
+    let position = vec4<f32>(vertex.position.xy, 0.0, 1.0);
+    let color = vertex.color;
 
-    let r = f32(index == 0u);
-    let g = f32(index == 1u);
-    let b = f32(index == 2u);
-
-    return VertexOut(
-        vec4(x, y, 0.0, 1.0),
-        vec4(r, g, b, 1.0),
-    );
+    return VertexOut(position, color);
 }
 
 @fragment fn fragment(vertex: VertexOut) -> @location(0) vec4<f32> {
@@ -28,169 +24,94 @@ struct VertexOut {
 }
 ";
 
+struct MinimalBuilder;
+
 struct Minimal {
-    /// The render pipeline used for the triangle.
-    pipeline: wgpu::RenderPipeline,
-
-    /// Buffer holding the uniform data.
-    uniforms_buffer: wgpu::Buffer,
-
-    /// The bind group used to reference the uniforms buffer.
-    uniforms_bind_group: wgpu::BindGroup,
-
-    /// A dynamic scale value applied to the triangle.
-    scale: f32,
+    mesh: MeshId,
+    material: MaterialId,
 }
 
-impl Minimal {
-    fn new(renderer: &RenderContext, surface_config: &SurfaceConfig) -> Self {
-        let scale = 1.0;
+#[derive(Clone, Copy, bytemuck::NoUninit)]
+#[repr(C)]
+struct Vertex {
+    position: Vec4,
+    color: Vec4,
+}
 
-        let uniforms_bind_group_layout =
-            renderer
-                .device
-                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                    label: Some("uniforms_bind_group_layout"),
-                    entries: &[wgpu::BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: wgpu::ShaderStages::VERTEX,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
-                    }],
-                });
-
-        let uniforms_buffer =
-            renderer
-                .device
-                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: Some("uniforms_bind_group"),
-                    contents: bytemuck::cast_slice(&[Vec4::new(scale, 0.0, 0.0, 0.0)]),
-                    usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-                });
-
-        let uniforms_bind_group = renderer
-            .device
-            .create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("uniforms_bind_group"),
-                layout: &uniforms_bind_group_layout,
-                entries: &[wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: uniforms_buffer.as_entire_binding(),
-                }],
-            });
-
-        let pipeline = {
-            let module = renderer
-                .device
-                .create_shader_module(wgpu::ShaderModuleDescriptor {
-                    label: None,
-                    source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(SHADER)),
-                });
-
-            let layout = renderer
-                .device
-                .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                    label: None,
-                    bind_group_layouts: &[&uniforms_bind_group_layout],
-                    immediate_size: 0,
-                });
-
-            renderer
-                .device
-                .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                    label: None,
-                    layout: Some(&layout),
-                    vertex: wgpu::VertexState {
-                        module: &module,
-                        entry_point: None,
-                        compilation_options: wgpu::PipelineCompilationOptions::default(),
-                        buffers: &[],
-                    },
-                    primitive: wgpu::PrimitiveState::default(),
-                    depth_stencil: None,
-                    multisample: wgpu::MultisampleState::default(),
-                    fragment: Some(wgpu::FragmentState {
-                        module: &module,
-                        entry_point: None,
-                        compilation_options: wgpu::PipelineCompilationOptions::default(),
-                        targets: &[Some(surface_config.format.into())],
-                    }),
-                    multiview_mask: None,
-                    cache: None,
-                })
-        };
-
-        Self {
-            pipeline,
-            uniforms_buffer,
-            uniforms_bind_group,
-            scale,
+impl AsVertexBufferLayout for Vertex {
+    fn layout() -> VertexBufferLayout {
+        VertexBufferLayout {
+            size: std::mem::size_of::<Self>() as u64,
+            attributes: vec![
+                VertexAttribute {
+                    format: VertexFormat::Float32x4,
+                },
+                VertexAttribute {
+                    format: VertexFormat::Float32x4,
+                },
+            ],
         }
     }
+}
 
-    fn upload_uniform(&mut self, renderer: &RenderContext) {
-        let data = Vec4::new(self.scale, 0.0, 0.0, 1.0);
-        renderer
-            .queue
-            .write_buffer(&self.uniforms_buffer, 0, bytemuck::cast_slice(&[data]));
+#[derive(Clone, Copy, bytemuck::NoUninit)]
+#[repr(C)]
+struct Instance {
+    position: Vec2,
+}
+
+impl AsInstanceBufferLayout for Instance {
+    fn layout() -> VertexBufferLayout {
+        VertexBufferLayout {
+            size: std::mem::size_of::<Self>() as u64,
+            attributes: vec![VertexAttribute {
+                format: VertexFormat::Float32x2,
+            }],
+        }
+    }
+}
+
+impl SceneBuilder for MinimalBuilder {
+    type Target = Minimal;
+
+    fn build(&self, renderer: &mut Renderer) -> Self::Target {
+        let vertices = &[
+            Vertex {
+                position: Vec4::new(-0.5, -0.5, 0.0, 0.0),
+                color: Vec4::new(1.0, 0.0, 0.0, 1.0),
+            },
+            Vertex {
+                position: Vec4::new(0.0, 0.5, 0.0, 0.0),
+                color: Vec4::new(0.0, 1.0, 0.0, 1.0),
+            },
+            Vertex {
+                position: Vec4::new(0.5, -0.5, 0.0, 0.0),
+                color: Vec4::new(0.0, 0.0, 1.0, 1.0),
+            },
+        ];
+
+        let mesh = renderer.create_mesh("triangle", vertices, &[0, 1, 2]);
+
+        let shader = renderer.create_shader("minimal", SHADER);
+        let vertex_shader = renderer.create_vertex_shader(shader, "vertex");
+        let fragment_shader = renderer.create_fragment_shader(shader, "fragment");
+        let material = renderer
+            .create_material(vertex_shader, fragment_shader)
+            .build();
+
+        Self::Target { mesh, material }
     }
 }
 
 impl Scene for Minimal {
-    fn update(&mut self, input: &InputState, time_delta: f32) {
-        if input.key_pressed(KeyCode::KeyW) {
-            self.scale = (self.scale - time_delta).max(0.1);
-        }
-        if input.key_pressed(KeyCode::KeyS) {
-            self.scale = (self.scale + time_delta).min(2.0);
-        }
-    }
-
-    fn render(
-        &mut self,
-        renderer: &RenderContext,
-        surface: &Surface,
-    ) -> impl Iterator<Item = wgpu::CommandBuffer> {
-        self.upload_uniform(renderer);
-
-        let mut encoder = renderer
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("minimal_command_encoder"),
-            });
-
-        {
-            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &surface.view,
-                    depth_slice: None,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.1,
-                            g: 0.2,
-                            b: 0.3,
-                            a: 1.0,
-                        }),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                ..Default::default()
-            });
-
-            render_pass.set_pipeline(&self.pipeline);
-            render_pass.set_bind_group(0, &self.uniforms_bind_group, &[]);
-            render_pass.draw(0..3, 0..1);
-        }
-
-        std::iter::once(encoder.finish())
+    fn render(&mut self, frame: &mut Frame) {
+        let instances = [Instance {
+            position: Vec2::ZERO,
+        }];
+        frame.draw_mesh_instanced(self.mesh, self.material, &instances);
     }
 }
 
-fn main() -> Result<(), winit::error::EventLoopError> {
-    granite::run(Minimal::new)
+fn main() {
+    granite::run(MinimalBuilder).unwrap();
 }

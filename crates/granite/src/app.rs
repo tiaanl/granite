@@ -1,7 +1,9 @@
 use std::sync::Arc;
 
+use glam::UVec2;
 use winit::{
     application::ApplicationHandler,
+    dpi::PhysicalSize,
     event::WindowEvent,
     event_loop::ActiveEventLoop,
     window::{Window, WindowAttributes, WindowId},
@@ -9,26 +11,25 @@ use winit::{
 
 use crate::{
     input::InputState,
-    prelude::SurfaceConfig,
-    render_context::RenderContext,
+    renderer::Renderer,
     scene::{Scene, SceneEvent},
 };
 
 pub trait SceneBuilder {
     type Target: Scene;
 
-    fn build(&self, renderer: &RenderContext, surface_config: &SurfaceConfig) -> Self::Target;
+    fn build(&self, renderer: &mut Renderer) -> Self::Target;
 }
 
 impl<T, F> SceneBuilder for F
 where
     T: Scene,
-    F: Fn(&RenderContext, &SurfaceConfig) -> T,
+    F: Fn(&mut Renderer) -> T,
 {
     type Target = T;
 
-    fn build(&self, renderer: &RenderContext, surface: &SurfaceConfig) -> Self::Target {
-        self(renderer, surface)
+    fn build(&self, renderer: &mut Renderer) -> Self::Target {
+        self(renderer)
     }
 }
 
@@ -49,7 +50,7 @@ where
         /// A handle to the main window runing our renderer.
         window: Arc<Window>,
         /// The renderer.
-        renderer: RenderContext,
+        renderer: Renderer,
         /// Keep track of the input state.
         input: InputState,
         /// The use [Scene] we are interacting with.
@@ -75,9 +76,11 @@ where
                 .unwrap(),
         );
 
-        let renderer = pollster::block_on(RenderContext::new(Arc::clone(&window)));
-        let surface_config = SurfaceConfig::from(&renderer.surface_inner.config);
-        let scene = builder.build(&renderer, &surface_config);
+        let PhysicalSize { width, height } = window.inner_size();
+
+        let mut renderer = Renderer::new(Arc::clone(&window), UVec2::new(width, height))
+            .expect("Could not create renderer");
+        let scene = builder.build(&mut renderer);
 
         *self = Self::Resumed {
             window,
@@ -96,7 +99,7 @@ where
     ) {
         let Self::Resumed {
             window,
-            renderer: render_context,
+            renderer,
             input,
             scene,
             last_frame_time,
@@ -117,13 +120,10 @@ where
                 event_loop.exit();
             }
 
-            WindowEvent::Resized(size) => {
-                render_context.resize(size);
+            WindowEvent::Resized(PhysicalSize { width, height }) => {
+                renderer.resize(UVec2::new(width, height));
 
-                let event = SceneEvent::WindowResized {
-                    width: size.width,
-                    height: size.height,
-                };
+                let event = SceneEvent::WindowResized { width, height };
                 scene.event(&event);
             }
 
@@ -135,11 +135,13 @@ where
                 input.reset_current_frame();
 
                 {
-                    let surface = render_context.surface_inner.get_current_surface();
-                    render_context
-                        .queue
-                        .submit(scene.render(render_context, &surface));
-                    surface.present();
+                    let mut frame = renderer.begin_frame();
+
+                    scene.render(&mut frame);
+
+                    renderer
+                        .submit_frame(frame)
+                        .expect("Could not submit frame");
                 }
 
                 *last_frame_time = std::time::Instant::now();
