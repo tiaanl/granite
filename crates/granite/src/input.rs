@@ -49,7 +49,7 @@ impl InputState {
 
             WindowEvent::MouseWheel { delta, .. } => {
                 self.mouse_wheel_delta = match delta {
-                    MouseScrollDelta::LineDelta(_, y) => y as f32,
+                    MouseScrollDelta::LineDelta(_, y) => y,
                     MouseScrollDelta::PixelDelta(physical_position) => physical_position.y as f32,
                 }
             }

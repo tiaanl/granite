@@ -1,5 +1,3 @@
-//! Handles the main engine loop. Calls into the [Scene] at significant points during the loop.
-
 mod app;
 mod input;
 mod render_context;
@@ -16,6 +14,7 @@ pub mod prelude {
     pub use super::scene::*;
 }
 
+/// Handles the main engine loop. Calls into the [Scene] at significant points during the loop.
 #[inline]
 pub fn run<Scene, Builder>(builder: Builder) -> Result<(), winit::error::EventLoopError>
 where
