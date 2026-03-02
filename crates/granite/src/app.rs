@@ -55,7 +55,7 @@ where
         input: InputState,
         /// The use [Scene] we are interacting with.
         scene: Builder::Target,
-        /// The last [Instance] that a frame was rendered to the display.
+        /// The last [std::time::Instant] that a frame was rendered to the display.
         last_frame_time: std::time::Instant,
     },
 }

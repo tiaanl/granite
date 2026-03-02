@@ -15,7 +15,7 @@ pub mod prelude {
     pub use super::scene::*;
 }
 
-/// Handles the main engine loop. Calls into the [Scene] at significant points during the loop.
+/// Handles the main engine loop. Calls into the [scene::Scene] at significant points during the loop.
 #[inline]
 pub fn run<Scene, Builder>(builder: Builder) -> Result<(), winit::error::EventLoopError>
 where
