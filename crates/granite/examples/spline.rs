@@ -1,249 +1,180 @@
 use glam::{Mat4, UVec2, Vec2};
 use granite::prelude::*;
-use wgpu::util::DeviceExt;
 
-struct Spline {
-    window_size: Option<UVec2>,
-    uniforms_buffer: wgpu::Buffer,
-    uniforms_bind_group: wgpu::BindGroup,
-
-    render_pipeline: wgpu::RenderPipeline,
-    vertex_buffer: wgpu::Buffer,
-    vertex_count: u32,
+const SHADER: &str = r"
+struct Uniforms {
+    projection: mat4x4<f32>,
 }
 
-impl Spline {
-    fn new(renderer: &RenderContext, surface_config: &SurfaceConfig) -> Self {
-        let (vertex_buffer, vertex_count) = {
-            let points = vec![
-                Vec2::new(100.0, 100.0),
-                Vec2::new(1000.0, 400.0),
-                Vec2::new(300.0, 800.0),
-                Vec2::new(900.0, 1100.0),
-            ];
+struct VertexIn {
+    @location(0) position: vec2<f32>,
+    @location(1) instance_offset: vec2<f32>,
+}
 
-            // let points = sample_catmull_rom_spline(&points, 32);
-            let points = sample_catmull_rom_spline(&points, 20.0);
-            let vertices = generate_polyline(&points, 40.0);
+@group(0) @binding(0) var<uniform> uniforms: Uniforms;
 
-            (
-                renderer
-                    .device
-                    .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                        label: Some("spline_vertices"),
-                        contents: bytemuck::cast_slice(&vertices),
-                        usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-                    }),
-                vertices.len() as u32,
-            )
-        };
+@vertex fn vertex(input: VertexIn) -> @builtin(position) vec4<f32> {
+    let world_position = input.position + input.instance_offset;
+    return uniforms.projection * vec4<f32>(world_position, 0.0, 1.0);
+}
 
-        let projection = Mat4::orthographic_rh(
-            0.0,
-            surface_config.width as f32,
-            surface_config.height as f32,
-            0.0,
-            0.0,
-            1.0,
-        );
+@fragment fn fragment() -> @location(0) vec4<f32> {
+    return vec4<f32>(1.0, 0.0, 0.0, 1.0);
+}
+";
 
-        let uniforms_buffer =
-            renderer
-                .device
-                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: Some("uniforms_buffer"),
-                    contents: bytemuck::cast_slice(&[projection]),
-                    usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::UNIFORM,
-                });
+struct SplineBuilder;
 
-        let uniforms_bind_group_layout =
-            renderer
-                .device
-                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                    label: Some("uniforms_bind_group_layout"),
-                    entries: &[wgpu::BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: wgpu::ShaderStages::VERTEX,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
-                    }],
-                });
+struct Spline {
+    mesh: MeshId,
+    material: MaterialId,
+    projection_uniform: UniformId,
+    world_size: Vec2,
+    pending_projection: Option<ProjectionUniform>,
+}
 
-        let uniforms_bind_group = renderer
-            .device
-            .create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("uniforms_bind_group"),
-                layout: &uniforms_bind_group_layout,
-                entries: &[wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: uniforms_buffer.as_entire_binding(),
-                }],
-            });
+#[derive(Clone, Copy, bytemuck::NoUninit)]
+#[repr(C)]
+struct Vertex {
+    position: Vec2,
+}
 
-        let render_pipeline = {
-            let module = renderer
-                .device
-                .create_shader_module(wgpu::ShaderModuleDescriptor {
-                    label: Some("spline_shader_module"),
-                    source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(
-                        r"
-                        @group(0) @binding(0) var<uniform> projection: mat4x4<f32>;
-
-                        @vertex fn vertex(@location(0) position: vec2<f32>) -> @builtin(position) vec4<f32> {
-                            return projection * vec4<f32>(position, 0.0, 1.0);
-                        }
-
-                        @fragment fn fragment() -> @location(0) vec4<f32> {
-                            let base_color = vec4<f32>(1.0, 0.0, 0.0, 1.0);
-                            return base_color;
-                        }
-                        ",
-                    )),
-                });
-
-            let layout = renderer
-                .device
-                .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                    label: Some("spline_pipeline_layout"),
-                    bind_group_layouts: &[&uniforms_bind_group_layout],
-                    immediate_size: 0,
-                });
-
-            renderer
-                .device
-                .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                    label: Some("spline_render_pipeline"),
-                    layout: Some(&layout),
-                    vertex: wgpu::VertexState {
-                        module: &module,
-                        entry_point: None,
-                        compilation_options: wgpu::PipelineCompilationOptions::default(),
-                        buffers: &[wgpu::VertexBufferLayout {
-                            array_stride: std::mem::size_of::<Vec2>() as wgpu::BufferAddress,
-                            step_mode: wgpu::VertexStepMode::Vertex,
-                            attributes: &wgpu::vertex_attr_array![0 => Float32x2],
-                        }],
-                    },
-                    primitive: wgpu::PrimitiveState {
-                        topology: wgpu::PrimitiveTopology::TriangleList,
-                        ..Default::default()
-                    },
-                    depth_stencil: None,
-                    multisample: wgpu::MultisampleState::default(),
-                    fragment: Some(wgpu::FragmentState {
-                        module: &module,
-                        entry_point: None,
-                        compilation_options: wgpu::PipelineCompilationOptions::default(),
-                        targets: &[Some(wgpu::ColorTargetState {
-                            format: surface_config.format,
-                            blend: Some(wgpu::BlendState {
-                                color: wgpu::BlendComponent {
-                                    src_factor: wgpu::BlendFactor::SrcAlpha,
-                                    dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
-                                    operation: wgpu::BlendOperation::Add,
-                                },
-                                alpha: wgpu::BlendComponent {
-                                    src_factor: wgpu::BlendFactor::One,
-                                    dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
-                                    operation: wgpu::BlendOperation::Add,
-                                },
-                            }),
-                            write_mask: wgpu::ColorWrites::ALL,
-                        })],
-                    }),
-                    multiview_mask: None,
-                    cache: None,
-                })
-        };
-
-        Self {
-            window_size: None,
-            uniforms_buffer,
-            uniforms_bind_group,
-
-            render_pipeline,
-            vertex_buffer,
-            vertex_count,
+impl AsVertexBufferLayout for Vertex {
+    fn layout() -> VertexBufferLayout {
+        VertexBufferLayout {
+            size: std::mem::size_of::<Self>() as u64,
+            attributes: vec![VertexAttribute {
+                format: VertexFormat::Float32x2,
+            }],
         }
     }
+}
 
-    fn calculate_projection(window_size: UVec2) -> Mat4 {
-        Mat4::orthographic_rh(
-            0.0,
-            window_size.x as f32,
-            window_size.y as f32,
-            0.0,
-            0.0,
-            1.0,
-        )
+#[derive(Clone, Copy, bytemuck::NoUninit)]
+#[repr(C)]
+struct Instance {
+    offset: Vec2,
+}
+
+impl AsInstanceBufferLayout for Instance {
+    fn layout() -> VertexBufferLayout {
+        VertexBufferLayout {
+            size: std::mem::size_of::<Self>() as u64,
+            attributes: vec![VertexAttribute {
+                format: VertexFormat::Float32x2,
+            }],
+        }
+    }
+}
+
+#[derive(Clone, Copy, bytemuck::NoUninit)]
+#[repr(C)]
+struct ProjectionUniform {
+    projection: [[f32; 4]; 4],
+}
+
+impl ProjectionUniform {
+    fn from_view(world_size: Vec2, window_size: UVec2) -> Self {
+        let view_width = window_size.x.max(1) as f32;
+        let view_height = window_size.y.max(1) as f32;
+        let view_aspect = view_width / view_height;
+        let world_aspect = world_size.x / world_size.y;
+
+        let (projection_width, projection_height) = if view_aspect > world_aspect {
+            (world_size.y * view_aspect, world_size.y)
+        } else {
+            (world_size.x, world_size.x / view_aspect)
+        };
+
+        let projection =
+            Mat4::orthographic_rh(0.0, projection_width, projection_height, 0.0, 0.0, 1.0);
+
+        Self {
+            projection: projection.to_cols_array_2d(),
+        }
+    }
+}
+
+impl AsUniformBuffer for ProjectionUniform {
+    const VISIBILITY: ShaderVisibility = ShaderVisibility::Vertex;
+}
+
+impl SceneBuilder for SplineBuilder {
+    type Target = Spline;
+
+    fn build(&self, renderer: &mut Renderer) -> Self::Target {
+        let points = vec![
+            Vec2::new(100.0, 100.0),
+            Vec2::new(1000.0, 400.0),
+            Vec2::new(300.0, 800.0),
+            Vec2::new(900.0, 1100.0),
+        ];
+
+        let points = sample_catmull_rom_spline(&points, 20.0);
+        let polyline = generate_polyline(&points, 40.0);
+
+        let vertices: Vec<Vertex> = polyline
+            .into_iter()
+            .map(|position| Vertex { position })
+            .collect();
+        let indices: Vec<u32> = (0..vertices.len() as u32).collect();
+
+        let mesh = renderer.create_mesh("spline", vertices.as_slice(), indices.as_slice());
+
+        let shader = renderer.create_shader("spline", SHADER);
+        let vertex_shader = renderer.create_vertex_shader(shader, "vertex");
+        let fragment_shader = renderer.create_fragment_shader(shader, "fragment");
+
+        let bounds = vertices
+            .iter()
+            .map(|vertex| vertex.position)
+            .fold(Vec2::ZERO, |acc, position| acc.max(position));
+        let world_size = Vec2::new(bounds.x.ceil() + 64.0, bounds.y.ceil() + 64.0);
+        let initial_projection = ProjectionUniform::from_view(
+            world_size,
+            UVec2::new(world_size.x as u32, world_size.y as u32),
+        );
+        let projection_uniform = renderer.create_uniform("spline_projection", &initial_projection);
+
+        let material = renderer
+            .create_material(vertex_shader, fragment_shader)
+            .uniform(0, 0, projection_uniform)
+            .build();
+
+        Spline {
+            mesh,
+            material,
+            projection_uniform,
+            world_size,
+            pending_projection: None,
+        }
     }
 }
 
 impl Scene for Spline {
-    fn event(&mut self, event: &SceneEvent) {
+    fn event(&mut self, event: SceneEvent) {
         match event {
             SceneEvent::WindowResized { width, height } => {
-                self.window_size = Some(UVec2::new(*width, *height));
+                self.pending_projection = Some(ProjectionUniform::from_view(
+                    self.world_size,
+                    UVec2::new(width, height),
+                ));
             }
         }
     }
 
-    fn render(
-        &mut self,
-        renderer: &RenderContext,
-        surface: &Surface,
-    ) -> impl Iterator<Item = wgpu::CommandBuffer> {
-        if let Some(window_size) = self.window_size.take() {
-            let projection = Self::calculate_projection(window_size);
-            renderer.queue.write_buffer(
-                &self.uniforms_buffer,
-                0,
-                bytemuck::cast_slice(&[projection]),
-            );
+    fn render(&mut self, frame: &mut Frame) {
+        if let Some(projection) = self.pending_projection.take() {
+            frame.update_uniform(self.projection_uniform, &projection);
         }
 
-        let mut encoder = renderer
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("spline_command_encoder"),
-            });
-
-        {
-            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("spline_render_pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &surface.view,
-                    depth_slice: None,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.1,
-                            g: 0.2,
-                            b: 0.3,
-                            a: 1.0,
-                        }),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                ..Default::default()
-            });
-
-            render_pass.set_pipeline(&self.render_pipeline);
-            render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            render_pass.set_bind_group(0, &self.uniforms_bind_group, &[]);
-            render_pass.draw(0..self.vertex_count, 0..1);
-        }
-
-        std::iter::once(encoder.finish())
+        let instances = [Instance { offset: Vec2::ZERO }];
+        frame.draw_mesh_instanced(self.mesh, self.material, &instances);
     }
 }
 
-fn main() -> Result<(), winit::error::EventLoopError> {
-    granite::run(Spline::new)
+fn main() {
+    granite::run(SplineBuilder).unwrap();
 }
 
 fn sample_catmull_rom_spline(points: &[Vec2], quality: f32) -> Vec<Vec2> {
@@ -275,8 +206,6 @@ fn sample_catmull_rom_spline(points: &[Vec2], quality: f32) -> Vec<Vec2> {
         let mid1 = window[2];
 
         let seg_count = calculate_segment_count(mid0, mid1, quality, 4, 32);
-        dbg!(seg_count);
-
         for i in 0..seg_count {
             let t = i as f32 / seg_count as f32;
             result.push(catmull_rom(window[0], window[1], window[2], window[3], t));

@@ -123,8 +123,7 @@ where
             WindowEvent::Resized(PhysicalSize { width, height }) => {
                 renderer.resize(UVec2::new(width, height));
 
-                let event = SceneEvent::WindowResized { width, height };
-                scene.event(&event);
+                scene.event(SceneEvent::WindowResized { width, height });
             }
 
             WindowEvent::RedrawRequested => {

@@ -5,7 +5,7 @@ pub enum SceneEvent {
 }
 
 pub trait Scene {
-    fn event(&mut self, event: &SceneEvent) {
+    fn event(&mut self, event: SceneEvent) {
         let _ = event;
     }
 
