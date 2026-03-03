@@ -31,44 +31,17 @@ struct Minimal {
     material: MaterialId,
 }
 
-#[derive(Clone, Copy, bytemuck::NoUninit)]
+#[derive(Clone, Copy, bytemuck::NoUninit, AsVertexLayout)]
 #[repr(C)]
 struct Vertex {
     position: Vec4,
     color: Vec4,
 }
 
-impl AsVertexBufferLayout for Vertex {
-    fn layout() -> VertexBufferLayout {
-        VertexBufferLayout {
-            size: std::mem::size_of::<Self>() as u64,
-            attributes: vec![
-                VertexAttribute {
-                    format: VertexFormat::Float32x4,
-                },
-                VertexAttribute {
-                    format: VertexFormat::Float32x4,
-                },
-            ],
-        }
-    }
-}
-
-#[derive(Clone, Copy, bytemuck::NoUninit)]
+#[derive(Clone, Copy, bytemuck::NoUninit, AsInstanceLayout)]
 #[repr(C)]
 struct Instance {
     position: Vec2,
-}
-
-impl AsInstanceBufferLayout for Instance {
-    fn layout() -> VertexBufferLayout {
-        VertexBufferLayout {
-            size: std::mem::size_of::<Self>() as u64,
-            attributes: vec![VertexAttribute {
-                format: VertexFormat::Float32x2,
-            }],
-        }
-    }
 }
 
 impl SceneBuilder for MinimalBuilder {

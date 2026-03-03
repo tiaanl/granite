@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+granite-macros = { path = "../granite-macros" }
 bytemuck = { version = "1.22", features = ["derive"] }
 generational-arena = "0.2"
 glam = { version = "0.30", features = ["bytemuck"] }

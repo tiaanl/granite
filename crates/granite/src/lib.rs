@@ -1,8 +1,8 @@
-mod app;
-mod common;
-mod input;
-mod renderer;
-mod scene;
+pub mod app;
+pub mod common;
+pub mod input;
+pub mod renderer;
+pub mod scene;
 
 // Re-export
 pub use glam;
@@ -13,6 +13,8 @@ pub mod prelude {
     pub use super::input::*;
     pub use super::renderer::*;
     pub use super::scene::*;
+
+    pub use granite_macros::{AsInstanceLayout, AsUniformBuffer, AsVertexLayout};
 }
 
 /// Handles the main engine loop. Calls into the [scene::Scene] at significant points during the loop.

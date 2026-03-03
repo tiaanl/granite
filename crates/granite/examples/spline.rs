@@ -33,41 +33,20 @@ struct Spline {
     pending_projection: Option<ProjectionUniform>,
 }
 
-#[derive(Clone, Copy, bytemuck::NoUninit)]
+#[derive(Clone, Copy, bytemuck::NoUninit, AsVertexLayout)]
 #[repr(C)]
 struct Vertex {
     position: Vec2,
 }
 
-impl AsVertexBufferLayout for Vertex {
-    fn layout() -> VertexBufferLayout {
-        VertexBufferLayout {
-            size: std::mem::size_of::<Self>() as u64,
-            attributes: vec![VertexAttribute {
-                format: VertexFormat::Float32x2,
-            }],
-        }
-    }
-}
-
-#[derive(Clone, Copy, bytemuck::NoUninit)]
+#[derive(Clone, Copy, bytemuck::NoUninit, AsInstanceLayout)]
 #[repr(C)]
 struct Instance {
     offset: Vec2,
 }
 
-impl AsInstanceBufferLayout for Instance {
-    fn layout() -> VertexBufferLayout {
-        VertexBufferLayout {
-            size: std::mem::size_of::<Self>() as u64,
-            attributes: vec![VertexAttribute {
-                format: VertexFormat::Float32x2,
-            }],
-        }
-    }
-}
-
-#[derive(Clone, Copy, bytemuck::NoUninit)]
+#[derive(Clone, Copy, bytemuck::NoUninit, AsUniformBuffer)]
+#[uniform_visibility(Vertex)]
 #[repr(C)]
 struct ProjectionUniform {
     projection: [[f32; 4]; 4],
@@ -93,10 +72,6 @@ impl ProjectionUniform {
             projection: projection.to_cols_array_2d(),
         }
     }
-}
-
-impl AsUniformBuffer for ProjectionUniform {
-    const VISIBILITY: ShaderVisibility = ShaderVisibility::Vertex;
 }
 
 impl SceneBuilder for SplineBuilder {
