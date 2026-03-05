@@ -1,4 +1,13 @@
+use crate::prelude::RenderTargetId;
+
 use super::{AsInstanceBufferLayout, AsUniformBuffer, MaterialId, MeshId, UniformId, commands};
+
+/// Specify the render target for a draw command.
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub enum RenderTarget {
+    Surface,
+    Custom(RenderTargetId),
+}
 
 /// Command list for a single frame to be submitted to the renderer.
 #[derive(Default)]
@@ -20,6 +29,7 @@ impl Frame {
     /// Queues an instanced indexed draw using the provided mesh and material.
     pub fn draw_mesh_instanced<I: AsInstanceBufferLayout>(
         &mut self,
+        render_target: RenderTarget,
         mesh: MeshId,
         material: MaterialId,
         instances: &[I],
@@ -30,6 +40,7 @@ impl Frame {
 
         self.commands.push(commands::FrameCommand::DrawIndexed(
             commands::DrawIndexedCommand {
+                render_target,
                 mesh,
                 material,
                 instance_buffer_layout: I::layout(),

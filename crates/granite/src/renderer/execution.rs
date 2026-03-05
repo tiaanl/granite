@@ -12,7 +12,7 @@ impl Renderer {
 
         let current_texture = self.get_current_surface_texture()?;
 
-        let view = current_texture
+        let surface_view = current_texture
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
 
@@ -24,19 +24,8 @@ impl Renderer {
         let mut frame_instance_buffers: Vec<wgpu::Buffer> = Vec::new();
 
         {
-            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("main_render_pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
-                    depth_slice: None,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                ..Default::default()
-            });
+            let mut last_render_target: Option<RenderTarget> = None;
+            let mut render_pass: Option<wgpu::RenderPass> = None;
 
             for command in commands.iter() {
                 match command {
@@ -44,7 +33,24 @@ impl Renderer {
                         uniform_update.execute(self)
                     }
                     commands::FrameCommand::DrawIndexed(draw_command) => {
-                        draw_command.execute(self, &mut render_pass, &mut frame_instance_buffers)
+                        let require_new_render_pass = match last_render_target {
+                            Some(render_target) => render_target != draw_command.render_target,
+                            None => true,
+                        };
+
+                        if require_new_render_pass || render_pass.is_none() {
+                            last_render_target = Some(draw_command.render_target);
+                            drop(render_pass);
+                            render_pass = self.create_render_pass_for_render_target(
+                                &mut encoder,
+                                &surface_view,
+                                draw_command.render_target,
+                            );
+                        }
+
+                        if let Some(render_pass) = &mut render_pass {
+                            draw_command.execute(self, render_pass, &mut frame_instance_buffers)
+                        }
                     }
                 }
             }
@@ -55,6 +61,35 @@ impl Renderer {
         current_texture.present();
 
         Ok(())
+    }
+
+    fn create_render_pass_for_render_target<'encoder>(
+        &self,
+        encoder: &'encoder mut wgpu::CommandEncoder,
+        surface_view: &wgpu::TextureView,
+        render_target: RenderTarget,
+    ) -> Option<wgpu::RenderPass<'encoder>> {
+        let view = match render_target {
+            RenderTarget::Surface => surface_view,
+            RenderTarget::Custom(id) => {
+                let record = self.render_targets.get(id)?;
+                &record.view
+            }
+        };
+
+        Some(encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("main_render_pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view,
+                depth_slice: None,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            ..Default::default()
+        }))
     }
 
     fn get_current_surface_texture(&mut self) -> Result<wgpu::SurfaceTexture, SubmitFrameError> {
@@ -396,6 +431,23 @@ impl Renderer {
 
         let fragment_shader_module = self.shaders.get(fragment_shader.shader_module)?;
 
+        let targets = match key.render_target {
+            RenderTarget::Surface => &[Some(wgpu::ColorTargetState {
+                format: surface_format,
+                blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                write_mask: wgpu::ColorWrites::ALL,
+            })],
+            RenderTarget::Custom(id) => {
+                let record = self.render_targets.get(id)?;
+
+                &[Some(wgpu::ColorTargetState {
+                    format: record.format.to_wgpu(),
+                    blend: None,
+                    write_mask: wgpu::ColorWrites::ALL,
+                })]
+            }
+        };
+
         Some(
             device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                 label: None,
@@ -424,11 +476,7 @@ impl Renderer {
                     module: &fragment_shader_module.shader_module,
                     entry_point: Some(&fragment_shader.entry_point),
                     compilation_options: wgpu::PipelineCompilationOptions::default(),
-                    targets: &[Some(wgpu::ColorTargetState {
-                        format: surface_format,
-                        blend: Some(wgpu::BlendState::ALPHA_BLENDING),
-                        write_mask: wgpu::ColorWrites::ALL,
-                    })],
+                    targets,
                 }),
                 multiview_mask: None,
                 cache: None,

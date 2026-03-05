@@ -47,6 +47,15 @@ impl FragmentShader {
 }
 
 impl Renderer {
+    /// Create a new render target.
+    pub fn create_render_target(
+        &mut self,
+        size: UVec2,
+        format: RenderTargetFormat,
+    ) -> RenderTargetId {
+        todo!()
+    }
+
     /// Creates a mesh resource and returns a stable mesh handle.
     pub fn create_mesh<V: mesh::AsVertexBufferLayout>(
         &mut self,

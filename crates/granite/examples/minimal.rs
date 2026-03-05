@@ -82,7 +82,7 @@ impl Scene for Minimal {
         let instances = [Instance {
             position: Vec2::ZERO,
         }];
-        frame.draw_mesh_instanced(self.mesh, self.material, &instances);
+        frame.draw_mesh_instanced(RenderTarget::Surface, self.mesh, self.material, &instances);
     }
 }
 

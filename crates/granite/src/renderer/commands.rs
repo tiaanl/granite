@@ -2,6 +2,7 @@ use super::*;
 use wgpu::util::DeviceExt;
 
 pub(super) struct DrawIndexedCommand {
+    pub render_target: RenderTarget,
     pub mesh: MeshId,
     pub material: MaterialId,
     pub instance_buffer_layout: VertexBufferLayout,
@@ -72,6 +73,7 @@ impl DrawIndexedCommand {
         };
 
         let key = RenderPipelineKey {
+            render_target: self.render_target,
             vertex_buffer_layout: vertex_buffer_layout_id,
             instance_buffer_layout: instance_buffer_layout_id,
             pipeline_layout: pipeline_layout_id,

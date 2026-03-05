@@ -47,15 +47,17 @@ mod commands;
 mod execution;
 mod frame;
 mod mesh;
+mod render_target;
 mod resources;
-
 mod sampler;
+
 pub use frame::*;
 pub use mesh::*;
 
-use crate::common::{Id, StableMap, StableSet, StableVec};
+pub use render_target::RenderTargetFormat;
 pub use sampler::*;
 
+use crate::common::{Id, StableMap, StableSet, StableVec};
 
 /// Handle to a uniform resource.
 pub type UniformId = Id;
@@ -67,6 +69,8 @@ pub type SamplerId = Id;
 pub type MaterialId = Id;
 /// Handle to a mesh resource.
 pub type MeshId = Id;
+/// Handle to a render target resource.
+pub type RenderTargetId = Id;
 /// Handle to a shader module resource.
 pub type ShaderModuleId = Id;
 /// Handle to a vertex shader entry-point resource.
@@ -187,6 +191,7 @@ pub enum SubmitFrameError {
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 struct RenderPipelineKey {
+    render_target: RenderTarget,
     vertex_buffer_layout: Id,
     instance_buffer_layout: Id,
     pipeline_layout: Id,
@@ -234,6 +239,7 @@ pub struct Renderer {
     surface: wgpu::Surface<'static>,
     surface_config: wgpu::SurfaceConfiguration,
 
+    render_targets: StableVec<render_target::RenderTargetRecord>,
     vertex_buffer_layouts: StableSet<VertexBufferLayout>,
     instance_buffer_layouts: StableSet<VertexBufferLayout>,
     bind_group_layouts: StableMap<BindGroupLayoutKey, wgpu::BindGroupLayout>,
@@ -288,6 +294,7 @@ impl Renderer {
             surface,
             surface_config,
 
+            render_targets: StableVec::default(),
             vertex_buffer_layouts: StableSet::default(),
             instance_buffer_layouts: StableSet::default(),
             bind_group_layouts: StableMap::default(),
