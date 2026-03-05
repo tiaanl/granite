@@ -222,15 +222,23 @@ impl Renderer {
         Some(texture_id)
     }
 
-    /// Creates a default linear sampler.
-    pub fn create_sampler(&mut self, name: &str) -> SamplerId {
+    /// Creates a sampler with addressing/filtering options.
+    pub fn create_sampler(
+        &mut self,
+        name: &str,
+        addressing: SamplerAddressing,
+        filtering: SamplerFiltering,
+    ) -> SamplerId {
+        let address_mode: wgpu::AddressMode = addressing.into();
+        let filter_mode: wgpu::FilterMode = filtering.into();
+
         let sampler = self.device.create_sampler(&wgpu::SamplerDescriptor {
             label: Some(&format!("{name}_sampler")),
-            address_mode_u: wgpu::AddressMode::ClampToEdge,
-            address_mode_v: wgpu::AddressMode::ClampToEdge,
-            address_mode_w: wgpu::AddressMode::ClampToEdge,
-            mag_filter: wgpu::FilterMode::Linear,
-            min_filter: wgpu::FilterMode::Linear,
+            address_mode_u: address_mode,
+            address_mode_v: address_mode,
+            address_mode_w: address_mode,
+            mag_filter: filter_mode,
+            min_filter: filter_mode,
             mipmap_filter: wgpu::MipmapFilterMode::Nearest,
             ..Default::default()
         });

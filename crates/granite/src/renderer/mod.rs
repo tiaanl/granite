@@ -49,10 +49,13 @@ mod frame;
 mod mesh;
 mod resources;
 
+mod sampler;
 pub use frame::*;
 pub use mesh::*;
 
 use crate::common::{Id, StableMap, StableSet, StableVec};
+pub use sampler::*;
+
 
 /// Handle to a uniform resource.
 pub type UniformId = Id;
