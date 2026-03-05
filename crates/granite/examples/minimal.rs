@@ -1,5 +1,6 @@
 use glam::{Vec2, Vec4};
 use granite::prelude::*;
+use granite_macros::{AsInstanceLayout, AsVertexLayout};
 
 const SHADER: &str = r"
 struct VertexIn {

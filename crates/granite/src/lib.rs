@@ -6,14 +6,15 @@ pub mod scene;
 
 // Re-export
 pub use glam;
-pub use wgpu;
 
 pub mod prelude {
     pub use super::app::*;
     pub use super::input::*;
     pub use super::renderer::*;
     pub use super::scene::*;
+}
 
+pub mod macros {
     pub use granite_macros::{AsInstanceLayout, AsUniformBuffer, AsVertexLayout};
 }
 

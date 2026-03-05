@@ -128,7 +128,10 @@ where
 
             WindowEvent::RedrawRequested => {
                 // The amount of seconds elapsed since the last frame was presented.
-                let delta_time = last_frame_time.elapsed().as_secs_f32();
+                let now = std::time::Instant::now();
+                let delta_time = (now - *last_frame_time).as_secs_f32();
+                *last_frame_time = now;
+
                 scene.update(input, delta_time);
 
                 input.reset_current_frame();
@@ -142,8 +145,6 @@ where
                         .submit_frame(frame)
                         .expect("Could not submit frame");
                 }
-
-                *last_frame_time = std::time::Instant::now();
 
                 window.request_redraw();
             }

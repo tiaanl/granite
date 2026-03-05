@@ -1,5 +1,6 @@
 use glam::{Mat4, UVec2, Vec2};
 use granite::prelude::*;
+use granite_macros::{AsInstanceLayout, AsUniformBuffer, AsVertexLayout};
 
 const SHADER: &str = r"
 struct Uniforms {

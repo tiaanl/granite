@@ -305,6 +305,11 @@ impl Renderer {
         })
     }
 
+    /// Get the current surface size.
+    pub fn surface_size(&self) -> UVec2 {
+        UVec2::new(self.surface_config.width, self.surface_config.height)
+    }
+
     /// Resizes and reconfigures the surface.
     pub fn resize(&mut self, size: UVec2) {
         self.surface_config.width = size.x.max(1);
