@@ -1,4 +1,7 @@
-use crate::common::Id;
+use crate::{
+    common::Id,
+    renderer::textures::{TextureFormat, TextureRecord},
+};
 
 use super::*;
 use wgpu::util::DeviceExt;
@@ -50,8 +53,8 @@ impl Renderer {
     /// Create a new render target.
     pub fn create_render_target(
         &mut self,
-        size: UVec2,
-        format: RenderTargetFormat,
+        _size: UVec2,
+        _format: RenderTargetFormat,
     ) -> RenderTargetId {
         todo!()
     }
@@ -181,11 +184,12 @@ impl Renderer {
         self.write_uniform_buffer_bytes(uniform.buffer, data)
     }
 
-    /// Creates an RGBA8 sRGB 2D texture and uploads pixel data.
-    pub fn create_texture_rgba8(
+    /// Create a new texture with the pixels given.
+    pub fn create_texture(
         &mut self,
         name: &str,
         size: UVec2,
+        format: TextureFormat,
         data: &[u8],
     ) -> Option<TextureId> {
         if size.x == 0 || size.y == 0 {
@@ -193,7 +197,7 @@ impl Renderer {
             return None;
         }
 
-        let expected_size = (size.x as usize) * (size.y as usize) * 4;
+        let expected_size = (size.x as usize) * (size.y as usize) * format.bytes_per_pixel();
         if data.len() != expected_size {
             tracing::warn!(
                 "Texture data size mismatch. Expected {expected_size} bytes, got {} bytes.",
@@ -214,7 +218,7 @@ impl Renderer {
                 mip_level_count: 1,
                 sample_count: 1,
                 dimension: wgpu::TextureDimension::D2,
-                format: wgpu::TextureFormat::Rgba8UnormSrgb,
+                format: format.to_wgpu(),
                 usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
                 view_formats: &[],
             },
@@ -225,10 +229,86 @@ impl Renderer {
 
         let texture_id = self.textures.push(TextureRecord {
             _texture: texture,
+            format,
             view,
+            size,
         });
 
         Some(texture_id)
+    }
+
+    pub(super) fn write_texture_rgba8_region(
+        &self,
+        texture_id: TextureId,
+        origin: UVec2,
+        size: UVec2,
+        data: &[u8],
+    ) -> bool {
+        if size.x == 0 || size.y == 0 {
+            tracing::warn!("Texture partial write rejected: zero-sized region.");
+            return false;
+        }
+
+        let Some(texture) = self.textures.get(texture_id) else {
+            tracing::warn!("Invalid texture id ({texture_id:?})");
+            return false;
+        };
+
+        let Some(end_x) = origin.x.checked_add(size.x) else {
+            tracing::warn!("Texture partial write rejected: x-range overflow.");
+            return false;
+        };
+        let Some(end_y) = origin.y.checked_add(size.y) else {
+            tracing::warn!("Texture partial write rejected: y-range overflow.");
+            return false;
+        };
+        if end_x > texture.size.x || end_y > texture.size.y {
+            tracing::warn!(
+                "Texture partial write out of bounds for {texture_id:?}: texture={}x{}, region=({}, {})..({}, {}).",
+                texture.size.x,
+                texture.size.y,
+                origin.x,
+                origin.y,
+                end_x,
+                end_y
+            );
+            return false;
+        }
+
+        let expected_size =
+            (size.x as usize) * (size.y as usize) * texture.format.bytes_per_pixel();
+        if data.len() != expected_size {
+            tracing::warn!(
+                "Texture partial write size mismatch for {texture_id:?}: expected {expected_size} bytes, got {} bytes.",
+                data.len()
+            );
+            return false;
+        }
+
+        self.queue.write_texture(
+            wgpu::TexelCopyTextureInfo {
+                texture: &texture._texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d {
+                    x: origin.x,
+                    y: origin.y,
+                    z: 0,
+                },
+                aspect: wgpu::TextureAspect::All,
+            },
+            data,
+            wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(size.x * texture.format.bytes_per_pixel() as u32),
+                rows_per_image: Some(size.y),
+            },
+            wgpu::Extent3d {
+                width: size.x,
+                height: size.y,
+                depth_or_array_layers: 1,
+            },
+        );
+        true
     }
 
     /// Creates a sampler with addressing/filtering options.

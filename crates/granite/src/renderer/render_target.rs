@@ -15,14 +15,14 @@ impl RenderTargetFormat {
 }
 
 pub struct RenderTargetRecord {
-    pub size: UVec2,
+    pub _size: UVec2,
     pub format: RenderTargetFormat,
-    pub texture: wgpu::Texture,
+    pub _texture: wgpu::Texture,
     pub view: wgpu::TextureView,
 }
 
 impl RenderTargetRecord {
-    pub fn create(
+    pub fn _create(
         device: &wgpu::Device,
         name: &str,
         size: UVec2,
@@ -48,9 +48,9 @@ impl RenderTargetRecord {
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
 
         Self {
-            size,
+            _size: size,
             format,
-            texture,
+            _texture: texture,
             view,
         }
     }

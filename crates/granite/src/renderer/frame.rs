@@ -1,6 +1,9 @@
 use crate::prelude::RenderTargetId;
+use glam::UVec2;
 
-use super::{AsInstanceBufferLayout, AsUniformBuffer, MaterialId, MeshId, UniformId, commands};
+use super::{
+    AsInstanceBufferLayout, AsUniformBuffer, MaterialId, MeshId, TextureId, UniformId, commands,
+};
 
 /// Specify the render target for a draw command.
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
@@ -24,6 +27,29 @@ impl Frame {
                 data: bytemuck::cast_slice(std::slice::from_ref(data)).to_vec(),
             },
         ));
+    }
+
+    /// Queues an update of a region of the specifed texture.
+    pub fn update_texture_region(
+        &mut self,
+        texture: TextureId,
+        origin: UVec2,
+        size: UVec2,
+        data: &[u8],
+    ) {
+        if size.x == 0 || size.y == 0 {
+            return;
+        }
+
+        self.commands
+            .push(commands::FrameCommand::UpdateTextureRegion(
+                commands::UpdateTextureRegionCommand {
+                    texture,
+                    origin,
+                    size,
+                    data: data.to_vec(),
+                },
+            ));
     }
 
     /// Queues an instanced indexed draw using the provided mesh and material.

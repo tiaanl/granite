@@ -32,6 +32,9 @@ impl Renderer {
                     commands::FrameCommand::UpdateUniform(uniform_update) => {
                         uniform_update.execute(self)
                     }
+                    commands::FrameCommand::UpdateTextureRegion(texture_update) => {
+                        texture_update.execute(self)
+                    }
                     commands::FrameCommand::DrawIndexed(draw_command) => {
                         let require_new_render_pass = match last_render_target {
                             Some(render_target) => render_target != draw_command.render_target,

@@ -42,6 +42,15 @@ use glam::UVec2;
 use thiserror::Error;
 use winit::window::Window;
 
+pub use frame::*;
+pub use mesh::*;
+
+pub use render_target::RenderTargetFormat;
+pub use sampler::*;
+pub use textures::TextureFormat;
+
+use crate::common::{Id, StableMap, StableSet, StableVec};
+
 mod bindings;
 mod commands;
 mod execution;
@@ -50,14 +59,7 @@ mod mesh;
 mod render_target;
 mod resources;
 mod sampler;
-
-pub use frame::*;
-pub use mesh::*;
-
-pub use render_target::RenderTargetFormat;
-pub use sampler::*;
-
-use crate::common::{Id, StableMap, StableSet, StableVec};
+mod textures;
 
 /// Handle to a uniform resource.
 pub type UniformId = Id;
@@ -209,11 +211,6 @@ struct UniformRecord {
     byte_len: usize,
 }
 
-struct TextureRecord {
-    _texture: wgpu::Texture,
-    view: wgpu::TextureView,
-}
-
 struct MaterialRecord {
     vertex_shader: VertexShaderId,
     fragment_shader: FragmentShaderId,
@@ -246,7 +243,7 @@ pub struct Renderer {
     bind_groups: StableMap<BindGroupKey, BindGroupRecord>,
     buffers: StableVec<wgpu::Buffer>,
     uniforms: StableVec<UniformRecord>,
-    textures: StableVec<TextureRecord>,
+    textures: StableVec<textures::TextureRecord>,
     samplers: StableVec<wgpu::Sampler>,
     materials: StableVec<MaterialRecord>,
     pipeline_layouts: StableMap<PipelineLayoutKey, wgpu::PipelineLayout>,

@@ -15,14 +15,33 @@ pub(super) struct UniformUpdateCommand {
     pub data: Vec<u8>,
 }
 
+pub(super) struct UpdateTextureRegionCommand {
+    pub texture: TextureId,
+    pub origin: glam::UVec2,
+    pub size: glam::UVec2,
+    pub data: Vec<u8>,
+}
+
 pub(super) enum FrameCommand {
     UpdateUniform(UniformUpdateCommand),
+    UpdateTextureRegion(UpdateTextureRegionCommand),
     DrawIndexed(DrawIndexedCommand),
 }
 
 impl UniformUpdateCommand {
     pub(super) fn execute(&self, renderer: &mut Renderer) {
         let _ = renderer.write_uniform_bytes(self.uniform, self.data.as_slice());
+    }
+}
+
+impl UpdateTextureRegionCommand {
+    pub(super) fn execute(&self, renderer: &mut Renderer) {
+        let _ = renderer.write_texture_rgba8_region(
+            self.texture,
+            self.origin,
+            self.size,
+            self.data.as_slice(),
+        );
     }
 }
 
