@@ -74,6 +74,21 @@ where
         id
     }
 
+    /// Removes all entries for which `keep(key)` returns `false`.
+    pub fn retain_keys<F>(&mut self, mut keep: F)
+    where
+        F: FnMut(&K) -> bool,
+    {
+        self.lookup.retain(|key, id| {
+            if keep(key) {
+                true
+            } else {
+                self.data.remove(*id);
+                false
+            }
+        });
+    }
+
     /// Returns the existing [`Id`] for `key`, or inserts a newly created value.
     #[inline]
     pub fn get_or_insert_with<F>(&mut self, key: K, create: F) -> Id

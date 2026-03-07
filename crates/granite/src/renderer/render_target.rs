@@ -1,5 +1,6 @@
 use glam::UVec2;
 
+#[derive(Clone, Copy)]
 pub enum RenderTargetFormat {
     Rgba,
     RgbaSrgb,
@@ -15,14 +16,14 @@ impl RenderTargetFormat {
 }
 
 pub struct RenderTargetRecord {
-    pub _size: UVec2,
+    pub size: UVec2,
     pub format: RenderTargetFormat,
-    pub _texture: wgpu::Texture,
+    pub texture: wgpu::Texture,
     pub view: wgpu::TextureView,
 }
 
 impl RenderTargetRecord {
-    pub fn _create(
+    pub fn create(
         device: &wgpu::Device,
         name: &str,
         size: UVec2,
@@ -48,9 +49,9 @@ impl RenderTargetRecord {
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
 
         Self {
-            _size: size,
+            size,
             format,
-            _texture: texture,
+            texture,
             view,
         }
     }

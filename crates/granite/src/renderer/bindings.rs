@@ -14,6 +14,10 @@ pub(super) enum DrawBindingResource {
         texture: TextureId,
         visibility: ShaderVisibility,
     },
+    RenderTarget {
+        render_target: RenderTargetId,
+        visibility: ShaderVisibility,
+    },
     Sampler {
         sampler: SamplerId,
         visibility: ShaderVisibility,
@@ -48,6 +52,18 @@ impl DrawBinding {
             resource: DrawBindingResource::Texture {
                 texture,
                 visibility,
+            },
+        }
+    }
+
+    /// Creates a render target binding descriptor with fragment visibility.
+    pub fn render_target(group: u32, binding: u32, render_target: RenderTargetId) -> Self {
+        Self {
+            group,
+            binding,
+            resource: DrawBindingResource::RenderTarget {
+                render_target,
+                visibility: ShaderVisibility::Fragment,
             },
         }
     }

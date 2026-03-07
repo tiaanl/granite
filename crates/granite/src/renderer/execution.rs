@@ -55,6 +55,7 @@ impl Renderer {
                 match command {
                     commands::FrameCommand::UpdateUniform(command) => command.execute(self),
                     commands::FrameCommand::UpdateTextureRegion(command) => command.execute(self),
+                    commands::FrameCommand::ResizeRenderTarget(command) => command.execute(self),
                     commands::FrameCommand::Draw(command) => {
                         with_render_pass!(command.render_target, pass, {
                             command.execute(self, pass)
@@ -225,6 +226,28 @@ impl Renderer {
                             },
                         )
                     }
+                    bindings::DrawBindingResource::RenderTarget {
+                        render_target,
+                        visibility,
+                    } => {
+                        if self.render_targets.get(render_target).is_none() {
+                            tracing::warn!("Invalid render target id ({render_target:?})");
+                            return None;
+                        }
+
+                        (
+                            BindGroupBindingKey {
+                                binding: draw_binding.binding,
+                                resource: BindGroupBindingResourceKey::RenderTarget(render_target),
+                            },
+                            BindGroupLayoutBindingKey {
+                                binding: draw_binding.binding,
+                                visibility,
+                                ty: BindGroupLayoutBindingTypeKey::Texture,
+                                min_binding_size: None,
+                            },
+                        )
+                    }
                     bindings::DrawBindingResource::Sampler {
                         sampler,
                         visibility,
@@ -368,6 +391,10 @@ impl Renderer {
                     BindGroupBindingResourceKey::Texture(texture_id) => {
                         let texture = self.textures.get(texture_id)?;
                         wgpu::BindingResource::TextureView(&texture.view)
+                    }
+                    BindGroupBindingResourceKey::RenderTarget(render_target_id) => {
+                        let render_target = self.render_targets.get(render_target_id)?;
+                        wgpu::BindingResource::TextureView(&render_target.view)
                     }
                     BindGroupBindingResourceKey::Sampler(sampler_id) => {
                         let sampler = self.samplers.get(sampler_id)?;

@@ -168,6 +168,7 @@ struct BindGroupLayoutKey {
 enum BindGroupBindingResourceKey {
     Uniform(UniformId),
     Texture(TextureId),
+    RenderTarget(RenderTargetId),
     Sampler(SamplerId),
 }
 

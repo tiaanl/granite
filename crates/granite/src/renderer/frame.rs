@@ -59,6 +59,18 @@ impl Frame {
             ));
     }
 
+    /// Queues a resize of a render target. Executes before any draw commands
+    /// in the same frame, so subsequent draws see the new size immediately.
+    pub fn resize_render_target(&mut self, render_target: RenderTargetId, size: UVec2) {
+        self.commands
+            .push(commands::FrameCommand::ResizeRenderTarget(
+                commands::ResizeRenderTarget {
+                    render_target,
+                    size,
+                },
+            ));
+    }
+
     /// Queues an indexed draw using the provided mesh and material.
     pub fn draw_mesh(&mut self, render_target: RenderTarget, mesh: MeshId, material: MaterialId) {
         self.commands

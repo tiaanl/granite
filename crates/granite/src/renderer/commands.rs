@@ -4,6 +4,7 @@ use wgpu::util::DeviceExt;
 pub(super) enum FrameCommand {
     UpdateUniform(UpdateUniform),
     UpdateTextureRegion(UpdateTextureRegion),
+    ResizeRenderTarget(ResizeRenderTarget),
     Draw(Draw),
     DrawMesh(DrawMesh),
     DrawMeshInstanced(DrawMeshInstanced),
@@ -136,6 +137,17 @@ impl UpdateTextureRegion {
             self.size,
             self.data.as_slice(),
         );
+    }
+}
+
+pub(super) struct ResizeRenderTarget {
+    pub render_target: RenderTargetId,
+    pub size: glam::UVec2,
+}
+
+impl ResizeRenderTarget {
+    pub(super) fn execute(&self, renderer: &mut Renderer) {
+        renderer.resize_render_target(self.render_target, self.size);
     }
 }
 

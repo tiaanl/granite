@@ -65,13 +65,42 @@ impl Renderer {
         self.create_material(vertex_shader, fragment_shader)
     }
 
-    /// Create a new render target.
+    /// Creates a new render target that can be drawn into and later bound as a texture.
     pub fn create_render_target(
         &mut self,
-        _size: UVec2,
-        _format: RenderTargetFormat,
+        name: &str,
+        size: UVec2,
+        format: RenderTargetFormat,
     ) -> RenderTargetId {
-        todo!()
+        let record = render_target::RenderTargetRecord::create(&self.device, name, size, format);
+        self.render_targets.push(record)
+    }
+
+    /// Recreates a render target at a new size, keeping the same format.
+    ///
+    /// Only bind groups that sampled this specific render target are evicted;
+    /// all others remain cached. Evicted bind groups are lazily recreated on
+    /// the next draw call.
+    pub fn resize_render_target(&mut self, id: RenderTargetId, size: UVec2) {
+        let Some(format) = self.render_targets.get(id).map(|r| r.format) else {
+            tracing::warn!("resize_render_target: invalid render target id ({id:?})");
+            return;
+        };
+
+        let new_record =
+            render_target::RenderTargetRecord::create(&self.device, "render_target", size, format);
+
+        if let Some(record) = self.render_targets.get_mut(id) {
+            *record = new_record;
+        }
+
+        // Evict only bind groups that reference this render target's TextureView,
+        // since that view is now stale. Unrelated bind groups are left intact.
+        self.bind_groups.retain_keys(|key| {
+            !key.bindings
+                .iter()
+                .any(|b| b.resource == BindGroupBindingResourceKey::RenderTarget(id))
+        });
     }
 
     /// Creates a mesh resource and returns a stable mesh handle.
@@ -413,6 +442,20 @@ impl<'a> MaterialBuilder<'a> {
     /// Adds a texture binding at `@group(group) @binding(binding)`.
     pub fn texture(self, group: u32, binding: u32, texture: TextureId) -> Self {
         self.push_binding(bindings::DrawBinding::texture(group, binding, texture))
+    }
+
+    /// Adds a render target as a texture binding at `@group(group) @binding(binding)`.
+    pub fn render_target_texture(
+        self,
+        group: u32,
+        binding: u32,
+        render_target: RenderTargetId,
+    ) -> Self {
+        self.push_binding(bindings::DrawBinding::render_target(
+            group,
+            binding,
+            render_target,
+        ))
     }
 
     /// Adds a sampler binding at `@group(group) @binding(binding)`.
