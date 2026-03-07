@@ -64,11 +64,8 @@ impl SceneBuilder for MinimalBuilder {
 
         let mesh = renderer.create_mesh("triangle", vertices, &[0, 1, 2]);
 
-        let shader = renderer.create_shader("minimal", SHADER);
-        let vertex_shader = renderer.create_vertex_shader(shader, "vertex");
-        let fragment_shader = renderer.create_fragment_shader(shader, "fragment");
         let material = renderer
-            .create_material(vertex_shader, fragment_shader)
+            .create_material_from_shader("minimal", SHADER)
             .build();
 
         Self::Target { mesh, material }

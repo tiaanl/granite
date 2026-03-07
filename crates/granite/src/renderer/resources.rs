@@ -23,33 +23,48 @@ impl ShaderModule {
 
 pub(super) struct VertexShader {
     pub shader_module: ShaderModuleId,
-    pub entry_point: String,
+    pub entry_point: Option<String>,
 }
 
 impl VertexShader {
-    fn create(shader_module: ShaderModuleId, entry_point: impl Into<String>) -> Self {
+    fn create(shader_module: ShaderModuleId, entry_point: Option<impl Into<String>>) -> Self {
         Self {
             shader_module,
-            entry_point: entry_point.into(),
+            entry_point: entry_point.map(Into::into),
         }
     }
 }
 
 pub(super) struct FragmentShader {
     pub shader_module: ShaderModuleId,
-    pub entry_point: String,
+    pub entry_point: Option<String>,
 }
 
 impl FragmentShader {
-    fn create(shader_module: ShaderModuleId, entry_point: impl Into<String>) -> Self {
+    fn create(shader_module: ShaderModuleId, entry_point: Option<impl Into<String>>) -> Self {
         Self {
             shader_module,
-            entry_point: entry_point.into(),
+            entry_point: entry_point.map(Into::into),
         }
     }
 }
 
 impl Renderer {
+    /// Creates a material builder directly from WGSL source.
+    ///
+    /// Leaves both entry points unspecified, so the shader's only `@vertex`
+    /// and `@fragment` entry points are used automatically.
+    pub fn create_material_from_shader(&mut self, name: &str, source: &str) -> MaterialBuilder<'_> {
+        let shader = self.create_shader(name, source);
+        let vertex_shader = self
+            .vertex_shaders
+            .push(VertexShader::create(shader, Option::<String>::None));
+        let fragment_shader = self
+            .fragment_shaders
+            .push(FragmentShader::create(shader, Option::<String>::None));
+        self.create_material(vertex_shader, fragment_shader)
+    }
+
     /// Create a new render target.
     pub fn create_render_target(
         &mut self,
@@ -90,7 +105,7 @@ impl Renderer {
         shader: ShaderModuleId,
         entry_point: impl Into<String>,
     ) -> VertexShaderId {
-        let vertex_shader = VertexShader::create(shader, entry_point);
+        let vertex_shader = VertexShader::create(shader, Some(entry_point));
         self.vertex_shaders.push(vertex_shader)
     }
 
@@ -100,7 +115,7 @@ impl Renderer {
         shader: ShaderModuleId,
         entry_point: impl Into<String>,
     ) -> FragmentShaderId {
-        let fragment_shader = FragmentShader::create(shader, entry_point);
+        let fragment_shader = FragmentShader::create(shader, Some(entry_point));
         self.fragment_shaders.push(fragment_shader)
     }
 

@@ -91,10 +91,6 @@ impl SceneBuilder for SplineBuilder {
 
         let mesh = renderer.create_mesh("spline", vertices.as_slice(), indices.as_slice());
 
-        let shader = renderer.create_shader("spline", SHADER);
-        let vertex_shader = renderer.create_vertex_shader(shader, "vertex");
-        let fragment_shader = renderer.create_fragment_shader(shader, "fragment");
-
         let bounds = vertices
             .iter()
             .map(|vertex| vertex.position)
@@ -107,7 +103,7 @@ impl SceneBuilder for SplineBuilder {
         let projection_uniform = renderer.create_uniform("spline_projection", &initial_projection);
 
         let material = renderer
-            .create_material(vertex_shader, fragment_shader)
+            .create_material_from_shader("spline", SHADER)
             .uniform(0, 0, projection_uniform)
             .build();
 

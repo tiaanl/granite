@@ -534,7 +534,7 @@ impl Renderer {
                 layout: Some(pipeline_layout),
                 vertex: wgpu::VertexState {
                     module: &vertex_shader_module.shader_module,
-                    entry_point: Some(&vertex_shader.entry_point),
+                    entry_point: vertex_shader.entry_point.as_deref(),
                     compilation_options: wgpu::PipelineCompilationOptions::default(),
                     buffers: buffers.as_slice(),
                 },
@@ -543,7 +543,7 @@ impl Renderer {
                 multisample: wgpu::MultisampleState::default(),
                 fragment: Some(wgpu::FragmentState {
                     module: &fragment_shader_module.shader_module,
-                    entry_point: Some(&fragment_shader.entry_point),
+                    entry_point: fragment_shader.entry_point.as_deref(),
                     compilation_options: wgpu::PipelineCompilationOptions::default(),
                     targets,
                 }),

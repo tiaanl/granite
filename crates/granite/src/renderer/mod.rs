@@ -18,10 +18,9 @@
 //! fn render_once(window: Arc<winit::window::Window>) -> Result<(), Box<dyn std::error::Error>> {
 //!     let mut renderer = Renderer::new(window, UVec2::new(1280, 720))?;
 //!
-//!     let shader = renderer.create_shader("main", "...wgsl...");
-//!     let vs = renderer.create_vertex_shader(shader, "vertex");
-//!     let fs = renderer.create_fragment_shader(shader, "fragment");
-//!     let material = renderer.create_material(vs, fs).build();
+//!     let material = renderer
+//!         .create_material_from_shader("main", "...wgsl...")
+//!         .build();
 //!
 //!     // Add mesh data to the renderer.
 //!     let vertices = &[/* your vertex data */];
