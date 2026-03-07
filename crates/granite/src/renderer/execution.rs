@@ -199,6 +199,7 @@ impl Renderer {
                                 binding: draw_binding.binding,
                                 visibility: uniform.visibility,
                                 ty: BindGroupLayoutBindingTypeKey::Uniform,
+                                min_binding_size: Some(uniform.min_binding_size),
                             },
                         )
                     }
@@ -220,6 +221,7 @@ impl Renderer {
                                 binding: draw_binding.binding,
                                 visibility,
                                 ty: BindGroupLayoutBindingTypeKey::Texture,
+                                min_binding_size: None,
                             },
                         )
                     }
@@ -241,6 +243,7 @@ impl Renderer {
                                 binding: draw_binding.binding,
                                 visibility,
                                 ty: BindGroupLayoutBindingTypeKey::Sampler,
+                                min_binding_size: None,
                             },
                         )
                     }
@@ -317,7 +320,7 @@ impl Renderer {
                 BindGroupLayoutBindingTypeKey::Uniform => wgpu::BindingType::Buffer {
                     ty: wgpu::BufferBindingType::Uniform,
                     has_dynamic_offset: false,
-                    min_binding_size: None,
+                    min_binding_size: binding.min_binding_size,
                 },
                 BindGroupLayoutBindingTypeKey::Texture => wgpu::BindingType::Texture {
                     sample_type: wgpu::TextureSampleType::Float { filterable: true },
@@ -439,8 +442,8 @@ impl Renderer {
             tracing::warn!("Vertex buffer layout not found");
             return None;
         }
-        let vertex_attributes =
-            vertex_buffer_layout.map(|vertex_buffer_layout| mesh::vertex_attributes(vertex_buffer_layout, 0));
+        let vertex_attributes = vertex_buffer_layout
+            .map(|vertex_buffer_layout| mesh::vertex_attributes(vertex_buffer_layout, 0));
 
         let instance_buffer_layout = {
             key.instance_buffer_layout

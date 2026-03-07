@@ -46,11 +46,10 @@ struct Instance {
     offset: Vec2,
 }
 
-#[derive(Clone, Copy, bytemuck::NoUninit, AsUniformBuffer)]
+#[derive(Clone, Copy, encase::ShaderType, AsUniformBuffer)]
 #[uniform_visibility(Vertex)]
-#[repr(C)]
 struct ProjectionUniform {
-    projection: [[f32; 4]; 4],
+    projection: Mat4,
 }
 
 impl ProjectionUniform {
@@ -69,9 +68,7 @@ impl ProjectionUniform {
         let projection =
             Mat4::orthographic_rh(0.0, projection_width, projection_height, 0.0, 0.0, 1.0);
 
-        Self {
-            projection: projection.to_cols_array_2d(),
-        }
+        Self { projection }
     }
 }
 

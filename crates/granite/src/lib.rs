@@ -5,10 +5,12 @@ pub mod renderer;
 pub mod scene;
 
 // Re-export
+pub use encase;
 pub use glam;
 
 pub mod prelude {
     pub use super::app::*;
+    pub use super::encase::ShaderType;
     pub use super::input::*;
     pub use super::renderer::*;
     pub use super::scene::*;

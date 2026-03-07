@@ -6,8 +6,9 @@ edition = "2024"
 [dependencies]
 granite-macros = { path = "../granite-macros" }
 bytemuck = { version = "1.22", features = ["derive"] }
+encase = "0.12"
 generational-arena = "0.2"
-glam = { version = "0.30", features = ["bytemuck"] }
+glam = { version = "0.30", features = ["bytemuck", "encase"] }
 pollster = "0.4"
 thiserror = "2.0"
 tracing = "0.1"

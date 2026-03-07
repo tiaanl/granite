@@ -87,9 +87,15 @@ struct PipelineLayoutKey {
 }
 
 /// Trait implemented by types that can be uploaded as uniforms.
-pub trait AsUniformBuffer: Copy + bytemuck::NoUninit {
+pub trait AsUniformBuffer: encase::ShaderType + encase::internal::WriteInto {
     /// Shader stage visibility of this uniform.
     const VISIBILITY: ShaderVisibility;
+}
+
+fn encode_uniform_bytes<T: AsUniformBuffer>(uniform: &T) -> encase::internal::Result<Vec<u8>> {
+    let mut buffer = encase::UniformBuffer::new(Vec::new());
+    buffer.write(uniform)?;
+    Ok(buffer.into_inner())
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
@@ -138,6 +144,7 @@ struct BindGroupLayoutBindingKey {
     binding: u32,
     visibility: ShaderVisibility,
     ty: BindGroupLayoutBindingTypeKey,
+    min_binding_size: Option<wgpu::BufferSize>,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
@@ -209,7 +216,7 @@ struct BindGroupRecord {
 struct UniformRecord {
     buffer: Id,
     visibility: ShaderVisibility,
-    byte_len: usize,
+    min_binding_size: wgpu::BufferSize,
 }
 
 struct MaterialRecord {

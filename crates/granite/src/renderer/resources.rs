@@ -126,12 +126,12 @@ impl Renderer {
         })
     }
 
-    fn create_uniform_buffer<T: bytemuck::NoUninit>(&mut self, name: &str, data: &T) -> Id {
+    fn create_uniform_buffer(&mut self, name: &str, data: &[u8]) -> Id {
         let buffer = self
             .device
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some(name),
-                contents: bytemuck::cast_slice(std::slice::from_ref(data)),
+                contents: data,
                 usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             });
 
@@ -154,18 +154,28 @@ impl Renderer {
         name: &str,
         initial_value: &T,
     ) -> UniformId {
-        let buffer = self.create_uniform_buffer(&format!("{name}_uniform"), initial_value);
+        let initial_bytes = encode_uniform_bytes(initial_value)
+            .unwrap_or_else(|error| panic!("Could not encode uniform `{name}`: {error}"));
+        let buffer =
+            self.create_uniform_buffer(&format!("{name}_uniform"), initial_bytes.as_slice());
         self.uniforms.push(UniformRecord {
             buffer,
             visibility: T::VISIBILITY,
-            byte_len: std::mem::size_of::<T>(),
+            min_binding_size: <T as encase::ShaderType>::min_size(),
         })
     }
 
     #[allow(dead_code)]
     /// Writes a complete value into an existing uniform buffer.
     pub fn write_uniform<T: AsUniformBuffer>(&self, uniform: UniformId, data: &T) -> bool {
-        self.write_uniform_bytes(uniform, bytemuck::cast_slice(std::slice::from_ref(data)))
+        let encoded = match encode_uniform_bytes(data) {
+            Ok(encoded) => encoded,
+            Err(error) => {
+                tracing::warn!("Could not encode uniform for {uniform:?}: {error}");
+                return false;
+            }
+        };
+        self.write_uniform_bytes(uniform, encoded.as_slice())
     }
 
     pub(super) fn write_uniform_bytes(&self, uniform_id: UniformId, data: &[u8]) -> bool {
@@ -173,10 +183,17 @@ impl Renderer {
             tracing::warn!("Invalid uniform id ({uniform_id:?})");
             return false;
         };
-        if data.len() != uniform.byte_len {
+        let Ok(expected_byte_len) = usize::try_from(uniform.min_binding_size.get()) else {
+            tracing::warn!(
+                "Uniform {uniform_id:?} has unsupported min binding size {} for this platform.",
+                uniform.min_binding_size.get()
+            );
+            return false;
+        };
+        if data.len() != expected_byte_len {
             tracing::warn!(
                 "Uniform write size mismatch for {uniform_id:?}: expected {} bytes, got {} bytes.",
-                uniform.byte_len,
+                expected_byte_len,
                 data.len()
             );
             return false;
