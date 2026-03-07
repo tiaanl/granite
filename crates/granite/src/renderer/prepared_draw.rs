@@ -13,7 +13,7 @@ impl PreparedDraw {
         material: MaterialId,
         instance_buffer_layout: Option<VertexBufferLayout>,
     ) -> Option<PreparedDraw> {
-        let (vertex_shader, fragment_shader, draw_bindings) = {
+        let (vertex_shader, fragment_shader, draw_bindings, blend_mode) = {
             let Some(material) = renderer.materials.get(material) else {
                 tracing::warn!("Invalid material id ({:?})", material);
                 return None;
@@ -22,6 +22,7 @@ impl PreparedDraw {
                 material.vertex_shader,
                 material.fragment_shader,
                 material.bindings.clone(),
+                material.blend_mode,
             )
         };
 
@@ -57,6 +58,7 @@ impl PreparedDraw {
             pipeline_layout: pipeline_layout_id,
             vertex_shader,
             fragment_shader,
+            blend_mode,
         };
 
         if !renderer.ensure_render_pipeline(key) {

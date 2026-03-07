@@ -118,11 +118,13 @@ impl Renderer {
         vertex_shader: VertexShaderId,
         fragment_shader: FragmentShaderId,
         bindings: &[bindings::DrawBinding],
+        blend_mode: BlendMode,
     ) -> MaterialId {
         self.materials.push(MaterialRecord {
             vertex_shader,
             fragment_shader,
             bindings: bindings.to_vec(),
+            blend_mode,
         })
     }
 
@@ -379,6 +381,7 @@ impl<'a> MaterialBuilder<'a> {
             vertex_shader,
             fragment_shader,
             bindings: Vec::new(),
+            blend_mode: BlendMode::default(),
         }
     }
 
@@ -402,6 +405,12 @@ impl<'a> MaterialBuilder<'a> {
         self.push_binding(bindings::DrawBinding::sampler(group, binding, sampler))
     }
 
+    /// Sets the blending mode for this material. Defaults to [`BlendMode::AlphaBlend`].
+    pub fn blend_mode(mut self, blend_mode: BlendMode) -> Self {
+        self.blend_mode = blend_mode;
+        self
+    }
+
     /// Finalizes and stores the material, returning its handle.
     pub fn build(self) -> MaterialId {
         let Self {
@@ -409,7 +418,13 @@ impl<'a> MaterialBuilder<'a> {
             vertex_shader,
             fragment_shader,
             bindings,
+            blend_mode,
         } = self;
-        renderer.insert_material(vertex_shader, fragment_shader, bindings.as_slice())
+        renderer.insert_material(
+            vertex_shader,
+            fragment_shader,
+            bindings.as_slice(),
+            blend_mode,
+        )
     }
 }

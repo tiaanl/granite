@@ -428,7 +428,7 @@ impl Renderer {
     }
 
     fn create_render_pipeline(&self, key: RenderPipelineKey) -> Option<wgpu::RenderPipeline> {
-        println!("Creating render pipeline for {key:?}");
+        tracing::debug!("Creating render pipeline for {key:?}");
 
         let device = &self.device;
 
@@ -474,10 +474,27 @@ impl Renderer {
 
         let fragment_shader_module = self.shaders.get(fragment_shader.shader_module)?;
 
+        let blend = match key.blend_mode {
+            BlendMode::Opaque => None,
+            BlendMode::AlphaBlend => Some(wgpu::BlendState::ALPHA_BLENDING),
+            BlendMode::Additive => Some(wgpu::BlendState {
+                color: wgpu::BlendComponent {
+                    src_factor: wgpu::BlendFactor::One,
+                    dst_factor: wgpu::BlendFactor::One,
+                    operation: wgpu::BlendOperation::Add,
+                },
+                alpha: wgpu::BlendComponent {
+                    src_factor: wgpu::BlendFactor::One,
+                    dst_factor: wgpu::BlendFactor::One,
+                    operation: wgpu::BlendOperation::Add,
+                },
+            }),
+            BlendMode::Premultiplied => Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
+        };
         let targets = match key.render_target {
             RenderTarget::Surface => &[Some(wgpu::ColorTargetState {
                 format: surface_format,
-                blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                blend,
                 write_mask: wgpu::ColorWrites::ALL,
             })],
             RenderTarget::Custom(id) => {
@@ -485,7 +502,7 @@ impl Renderer {
 
                 &[Some(wgpu::ColorTargetState {
                     format: record.format.to_wgpu(),
-                    blend: None,
+                    blend,
                     write_mask: wgpu::ColorWrites::ALL,
                 })]
             }

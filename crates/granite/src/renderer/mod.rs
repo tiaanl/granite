@@ -142,6 +142,7 @@ pub struct MaterialBuilder<'a> {
     vertex_shader: VertexShaderId,
     fragment_shader: FragmentShaderId,
     bindings: Vec<bindings::DrawBinding>,
+    blend_mode: BlendMode,
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
@@ -211,6 +212,20 @@ pub enum SubmitFrameError {
     AcquireCurrentFrame(String),
 }
 
+/// Blending behavior applied to a material's color output.
+#[derive(Clone, Copy, Debug, Default, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub enum BlendMode {
+    /// No blending; source color fully replaces the destination.
+    Opaque,
+    /// Standard alpha blending: `src_alpha * src + (1 - src_alpha) * dst`.
+    #[default]
+    AlphaBlend,
+    /// Additive blending: `src + dst`.
+    Additive,
+    /// Premultiplied alpha blending.
+    Premultiplied,
+}
+
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 struct RenderPipelineKey {
     render_target: RenderTarget,
@@ -219,6 +234,7 @@ struct RenderPipelineKey {
     pipeline_layout: Id,
     vertex_shader: VertexShaderId,
     fragment_shader: FragmentShaderId,
+    blend_mode: BlendMode,
 }
 
 struct BindGroupRecord {
@@ -235,6 +251,7 @@ struct MaterialRecord {
     vertex_shader: VertexShaderId,
     fragment_shader: FragmentShaderId,
     bindings: Vec<bindings::DrawBinding>,
+    blend_mode: BlendMode,
 }
 
 struct ResolvedDrawBindGroup {
