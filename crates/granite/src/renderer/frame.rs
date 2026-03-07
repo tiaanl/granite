@@ -62,6 +62,19 @@ impl Frame {
             }));
     }
 
+    /// Queues a non-indexed draw using only the material pipeline.
+    pub fn draw(&mut self, render_target: RenderTarget, material: MaterialId, vertex_count: u32) {
+        if vertex_count == 0 {
+            return;
+        }
+
+        self.commands.push(commands::FrameCommand::Draw(commands::Draw {
+            render_target,
+            material,
+            vertex_count,
+        }));
+    }
+
     /// Queues an instanced indexed draw using the provided mesh and material.
     pub fn draw_mesh_instanced<I: AsInstanceBufferLayout>(
         &mut self,

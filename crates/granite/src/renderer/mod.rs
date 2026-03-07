@@ -195,7 +195,7 @@ pub enum SubmitFrameError {
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 struct RenderPipelineKey {
     render_target: RenderTarget,
-    vertex_buffer_layout: Id,
+    vertex_buffer_layout: Option<Id>,
     instance_buffer_layout: Option<Id>,
     pipeline_layout: Id,
     vertex_shader: VertexShaderId,

@@ -9,7 +9,7 @@ impl PreparedDraw {
     pub fn try_new(
         renderer: &mut Renderer,
         render_target: RenderTarget,
-        mesh: MeshId,
+        mesh: Option<MeshId>,
         material: MaterialId,
         instance_buffer_layout: Option<VertexBufferLayout>,
     ) -> Option<PreparedDraw> {
@@ -25,22 +25,24 @@ impl PreparedDraw {
             )
         };
 
-        let Some(vertex_buffer_layout_id) = renderer
-            .meshes
-            .get(mesh)
-            .map(|mesh| mesh.vertex_buffer_layout_id)
-        else {
-            tracing::warn!("Invalid mesh id ({:?})", mesh);
-            return None;
+        let vertex_buffer_layout = if let Some(mesh_id) = mesh {
+            let Some(vertex_buffer_layout_id) = renderer
+                .meshes
+                .get(mesh_id)
+                .map(|mesh| mesh.vertex_buffer_layout_id)
+            else {
+                tracing::warn!("Invalid mesh id ({:?})", mesh_id);
+                return None;
+            };
+            Some(vertex_buffer_layout_id)
+        } else {
+            None
         };
 
         let instance_buffer_layout = instance_buffer_layout
             .map(|layout| renderer.get_or_create_instance_buffer_layout(layout));
 
-        let Some(resolved_bindings) = renderer.resolve_draw_bindings(draw_bindings.as_slice())
-        else {
-            return None;
-        };
+        let resolved_bindings = renderer.resolve_draw_bindings(draw_bindings.as_slice())?;
         let Some(pipeline_layout_id) =
             renderer.get_or_create_pipeline_layout(resolved_bindings.pipeline_layout_key)
         else {
@@ -50,7 +52,7 @@ impl PreparedDraw {
 
         let key = RenderPipelineKey {
             render_target,
-            vertex_buffer_layout: vertex_buffer_layout_id,
+            vertex_buffer_layout,
             instance_buffer_layout,
             pipeline_layout: pipeline_layout_id,
             vertex_shader,

@@ -4,8 +4,35 @@ use wgpu::util::DeviceExt;
 pub(super) enum FrameCommand {
     UpdateUniform(UpdateUniform),
     UpdateTextureRegion(UpdateTextureRegion),
+    Draw(Draw),
     DrawMesh(DrawMesh),
     DrawMeshInstanced(DrawMeshInstanced),
+}
+
+pub(super) struct Draw {
+    pub render_target: RenderTarget,
+    pub material: MaterialId,
+    pub vertex_count: u32,
+}
+
+impl Draw {
+    pub(super) fn execute(&self, renderer: &mut Renderer, render_pass: &mut wgpu::RenderPass<'_>) {
+        if self.vertex_count == 0 {
+            return;
+        }
+
+        let Some(prepared_draw) =
+            PreparedDraw::try_new(renderer, self.render_target, None, self.material, None)
+        else {
+            return;
+        };
+
+        if !bind_pipeline_and_groups(renderer, render_pass, &prepared_draw) {
+            return;
+        }
+
+        render_pass.draw(0..self.vertex_count, 0..1);
+    }
 }
 
 pub(super) struct DrawMesh {
@@ -16,9 +43,13 @@ pub(super) struct DrawMesh {
 
 impl DrawMesh {
     pub(super) fn execute(&self, renderer: &mut Renderer, render_pass: &mut wgpu::RenderPass<'_>) {
-        let Some(prepared_draw) =
-            PreparedDraw::try_new(renderer, self.render_target, self.mesh, self.material, None)
-        else {
+        let Some(prepared_draw) = PreparedDraw::try_new(
+            renderer,
+            self.render_target,
+            Some(self.mesh),
+            self.material,
+            None,
+        ) else {
             return;
         };
         let Some(index_count) = bind_draw_state(renderer, render_pass, &prepared_draw, self.mesh)
@@ -53,7 +84,7 @@ impl DrawMeshInstanced {
         let Some(prepared_draw) = PreparedDraw::try_new(
             renderer,
             self.render_target,
-            self.mesh,
+            Some(self.mesh),
             self.material,
             Some(self.instance_buffer_layout.clone()),
         ) else {
@@ -114,23 +145,36 @@ fn bind_draw_state(
     prepared_draw: &PreparedDraw,
     mesh_id: MeshId,
 ) -> Option<u32> {
+    if !bind_pipeline_and_groups(renderer, render_pass, prepared_draw) {
+        return None;
+    }
+
     let Some(mesh) = renderer.meshes.get(mesh_id) else {
         tracing::warn!("Invalid mesh id ({:?})", mesh_id);
         return None;
     };
 
+    render_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
+    render_pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+
+    Some(mesh.index_count)
+}
+
+fn bind_pipeline_and_groups(
+    renderer: &Renderer,
+    render_pass: &mut wgpu::RenderPass<'_>,
+    prepared_draw: &PreparedDraw,
+) -> bool {
     let render_pipeline = &renderer.render_pipeline_cache[&prepared_draw.key];
     render_pass.set_pipeline(render_pipeline);
     for bind_group in prepared_draw.bind_groups_to_set.iter() {
         let Some(bind_group_record) = renderer.bind_groups.get(bind_group.bind_group) else {
             tracing::warn!("Invalid bind group id ({:?})", bind_group.bind_group);
-            return None;
+            return false;
         };
 
         render_pass.set_bind_group(bind_group.slot, &bind_group_record.bind_group, &[]);
     }
-    render_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
-    render_pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
 
-    Some(mesh.index_count)
+    true
 }

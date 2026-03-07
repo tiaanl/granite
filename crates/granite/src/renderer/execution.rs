@@ -31,6 +31,26 @@ impl Renderer {
                 match command {
                     commands::FrameCommand::UpdateUniform(command) => command.execute(self),
                     commands::FrameCommand::UpdateTextureRegion(command) => command.execute(self),
+                    commands::FrameCommand::Draw(command) => {
+                        let require_new_render_pass = match last_render_target {
+                            Some(render_target) => render_target != command.render_target,
+                            None => true,
+                        };
+
+                        if require_new_render_pass || render_pass.is_none() {
+                            last_render_target = Some(command.render_target);
+                            drop(render_pass);
+                            render_pass = self.create_render_pass_for_render_target(
+                                &mut encoder,
+                                &surface_view,
+                                command.render_target,
+                            );
+                        }
+
+                        if let Some(render_pass) = &mut render_pass {
+                            command.execute(self, render_pass)
+                        }
+                    }
                     commands::FrameCommand::DrawMesh(command) => {
                         let require_new_render_pass = match last_render_target {
                             Some(render_target) => render_target != command.render_target,
@@ -433,8 +453,15 @@ impl Renderer {
         let surface_format = self.surface_config.format;
         let pipeline_layout = self.pipeline_layouts.get(key.pipeline_layout)?;
 
-        let vertex_buffer_layout = self.vertex_buffer_layouts.get(key.vertex_buffer_layout)?;
-        let vertex_attributes = mesh::vertex_attributes(vertex_buffer_layout, 0);
+        let vertex_buffer_layout = key
+            .vertex_buffer_layout
+            .and_then(|vertex_buffer_layout| self.vertex_buffer_layouts.get(vertex_buffer_layout));
+        if key.vertex_buffer_layout.is_some() && vertex_buffer_layout.is_none() {
+            tracing::warn!("Vertex buffer layout not found");
+            return None;
+        }
+        let vertex_attributes =
+            vertex_buffer_layout.map(|vertex_buffer_layout| mesh::vertex_attributes(vertex_buffer_layout, 0));
 
         let instance_buffer_layout = {
             key.instance_buffer_layout
@@ -450,8 +477,11 @@ impl Renderer {
                 })
         };
 
+        let instance_attribute_start = vertex_attributes
+            .as_ref()
+            .map_or(0, |vertex_attributes| vertex_attributes.len() as u32);
         let instance_attributes = instance_buffer_layout.map(|instance_buffer_layout| {
-            mesh::vertex_attributes(instance_buffer_layout, vertex_attributes.len() as u32)
+            mesh::vertex_attributes(instance_buffer_layout, instance_attribute_start)
         });
 
         let vertex_shader = self.vertex_shaders.get(key.vertex_shader)?;
@@ -479,29 +509,25 @@ impl Renderer {
             }
         };
 
-        let buffers: &[wgpu::VertexBufferLayout] =
-            if let (Some(instance_buffer_layout), Some(instance_attributes)) =
-                (&instance_buffer_layout, &instance_attributes)
-            {
-                &[
-                    wgpu::VertexBufferLayout {
-                        array_stride: vertex_buffer_layout.size,
-                        step_mode: wgpu::VertexStepMode::Vertex,
-                        attributes: &vertex_attributes,
-                    },
-                    wgpu::VertexBufferLayout {
-                        array_stride: instance_buffer_layout.size,
-                        step_mode: wgpu::VertexStepMode::Instance,
-                        attributes: instance_attributes,
-                    },
-                ]
-            } else {
-                &[wgpu::VertexBufferLayout {
-                    array_stride: vertex_buffer_layout.size,
-                    step_mode: wgpu::VertexStepMode::Vertex,
-                    attributes: &vertex_attributes,
-                }]
-            };
+        let mut buffers: Vec<wgpu::VertexBufferLayout<'_>> = Vec::new();
+        if let (Some(vertex_buffer_layout), Some(vertex_attributes)) =
+            (&vertex_buffer_layout, &vertex_attributes)
+        {
+            buffers.push(wgpu::VertexBufferLayout {
+                array_stride: vertex_buffer_layout.size,
+                step_mode: wgpu::VertexStepMode::Vertex,
+                attributes: vertex_attributes.as_slice(),
+            });
+        }
+        if let (Some(instance_buffer_layout), Some(instance_attributes)) =
+            (&instance_buffer_layout, &instance_attributes)
+        {
+            buffers.push(wgpu::VertexBufferLayout {
+                array_stride: instance_buffer_layout.size,
+                step_mode: wgpu::VertexStepMode::Instance,
+                attributes: instance_attributes.as_slice(),
+            });
+        }
 
         Some(
             device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -511,7 +537,7 @@ impl Renderer {
                     module: &vertex_shader_module.shader_module,
                     entry_point: Some(&vertex_shader.entry_point),
                     compilation_options: wgpu::PipelineCompilationOptions::default(),
-                    buffers,
+                    buffers: buffers.as_slice(),
                 },
                 primitive: wgpu::PrimitiveState::default(),
                 depth_stencil: None,
