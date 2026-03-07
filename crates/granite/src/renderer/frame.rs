@@ -68,11 +68,12 @@ impl Frame {
             return;
         }
 
-        self.commands.push(commands::FrameCommand::Draw(commands::Draw {
-            render_target,
-            material,
-            vertex_count,
-        }));
+        self.commands
+            .push(commands::FrameCommand::Draw(commands::Draw {
+                render_target,
+                material,
+                vertex_count,
+            }));
     }
 
     /// Queues an instanced indexed draw using the provided mesh and material.
