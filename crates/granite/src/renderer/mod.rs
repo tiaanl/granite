@@ -56,6 +56,7 @@ mod commands;
 mod execution;
 mod frame;
 mod mesh;
+mod prepared_draw;
 mod render_target;
 mod resources;
 mod sampler;
@@ -195,7 +196,7 @@ pub enum SubmitFrameError {
 struct RenderPipelineKey {
     render_target: RenderTarget,
     vertex_buffer_layout: Id,
-    instance_buffer_layout: Id,
+    instance_buffer_layout: Option<Id>,
     pipeline_layout: Id,
     vertex_shader: VertexShaderId,
     fragment_shader: FragmentShaderId,

@@ -22,7 +22,7 @@ impl Frame {
     /// Queues an update for a previously created uniform.
     pub fn update_uniform<T: AsUniformBuffer>(&mut self, uniform: UniformId, data: &T) {
         self.commands.push(commands::FrameCommand::UpdateUniform(
-            commands::UniformUpdateCommand {
+            commands::UpdateUniform {
                 uniform,
                 data: bytemuck::cast_slice(std::slice::from_ref(data)).to_vec(),
             },
@@ -43,13 +43,23 @@ impl Frame {
 
         self.commands
             .push(commands::FrameCommand::UpdateTextureRegion(
-                commands::UpdateTextureRegionCommand {
+                commands::UpdateTextureRegion {
                     texture,
                     origin,
                     size,
                     data: data.to_vec(),
                 },
             ));
+    }
+
+    /// Queues an indexed draw using the provided mesh and material.
+    pub fn draw_mesh(&mut self, render_target: RenderTarget, mesh: MeshId, material: MaterialId) {
+        self.commands
+            .push(commands::FrameCommand::DrawMesh(commands::DrawMesh {
+                render_target,
+                mesh,
+                material,
+            }));
     }
 
     /// Queues an instanced indexed draw using the provided mesh and material.
@@ -64,15 +74,16 @@ impl Frame {
             return;
         }
 
-        self.commands.push(commands::FrameCommand::DrawIndexed(
-            commands::DrawIndexedCommand {
-                render_target,
-                mesh,
-                material,
-                instance_buffer_layout: I::layout(),
-                instance_data: bytemuck::cast_slice(instances).to_vec(),
-                instance_count: instances.len() as u32,
-            },
-        ));
+        self.commands
+            .push(commands::FrameCommand::DrawMeshInstanced(
+                commands::DrawMeshInstanced {
+                    render_target,
+                    mesh,
+                    material,
+                    instance_buffer_layout: I::layout(),
+                    instance_data: bytemuck::cast_slice(instances).to_vec(),
+                    instance_count: instances.len() as u32,
+                },
+            ));
     }
 }

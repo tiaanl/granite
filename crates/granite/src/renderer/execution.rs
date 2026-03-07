@@ -29,30 +29,46 @@ impl Renderer {
 
             for command in commands.iter() {
                 match command {
-                    commands::FrameCommand::UpdateUniform(uniform_update) => {
-                        uniform_update.execute(self)
-                    }
-                    commands::FrameCommand::UpdateTextureRegion(texture_update) => {
-                        texture_update.execute(self)
-                    }
-                    commands::FrameCommand::DrawIndexed(draw_command) => {
+                    commands::FrameCommand::UpdateUniform(command) => command.execute(self),
+                    commands::FrameCommand::UpdateTextureRegion(command) => command.execute(self),
+                    commands::FrameCommand::DrawMesh(command) => {
                         let require_new_render_pass = match last_render_target {
-                            Some(render_target) => render_target != draw_command.render_target,
+                            Some(render_target) => render_target != command.render_target,
                             None => true,
                         };
 
                         if require_new_render_pass || render_pass.is_none() {
-                            last_render_target = Some(draw_command.render_target);
+                            last_render_target = Some(command.render_target);
                             drop(render_pass);
                             render_pass = self.create_render_pass_for_render_target(
                                 &mut encoder,
                                 &surface_view,
-                                draw_command.render_target,
+                                command.render_target,
                             );
                         }
 
                         if let Some(render_pass) = &mut render_pass {
-                            draw_command.execute(self, render_pass, &mut frame_instance_buffers)
+                            command.execute(self, render_pass)
+                        }
+                    }
+                    commands::FrameCommand::DrawMeshInstanced(command) => {
+                        let require_new_render_pass = match last_render_target {
+                            Some(render_target) => render_target != command.render_target,
+                            None => true,
+                        };
+
+                        if require_new_render_pass || render_pass.is_none() {
+                            last_render_target = Some(command.render_target);
+                            drop(render_pass);
+                            render_pass = self.create_render_pass_for_render_target(
+                                &mut encoder,
+                                &surface_view,
+                                command.render_target,
+                            );
+                        }
+
+                        if let Some(render_pass) = &mut render_pass {
+                            command.execute(self, render_pass, &mut frame_instance_buffers)
                         }
                     }
                 }
@@ -420,11 +436,23 @@ impl Renderer {
         let vertex_buffer_layout = self.vertex_buffer_layouts.get(key.vertex_buffer_layout)?;
         let vertex_attributes = mesh::vertex_attributes(vertex_buffer_layout, 0);
 
-        let instance_buffer_layout = self
-            .instance_buffer_layouts
-            .get(key.instance_buffer_layout)?;
-        let instance_attributes =
-            mesh::vertex_attributes(instance_buffer_layout, vertex_attributes.len() as u32);
+        let instance_buffer_layout = {
+            key.instance_buffer_layout
+                .and_then(|instance_buffer_layout| {
+                    if let Some(instance_buffer_layout) =
+                        self.instance_buffer_layouts.get(instance_buffer_layout)
+                    {
+                        Some(instance_buffer_layout)
+                    } else {
+                        tracing::warn!("Instance buffer layout not found");
+                        None
+                    }
+                })
+        };
+
+        let instance_attributes = instance_buffer_layout.map(|instance_buffer_layout| {
+            mesh::vertex_attributes(instance_buffer_layout, vertex_attributes.len() as u32)
+        });
 
         let vertex_shader = self.vertex_shaders.get(key.vertex_shader)?;
 
@@ -451,6 +479,30 @@ impl Renderer {
             }
         };
 
+        let buffers: &[wgpu::VertexBufferLayout] =
+            if let (Some(instance_buffer_layout), Some(instance_attributes)) =
+                (&instance_buffer_layout, &instance_attributes)
+            {
+                &[
+                    wgpu::VertexBufferLayout {
+                        array_stride: vertex_buffer_layout.size,
+                        step_mode: wgpu::VertexStepMode::Vertex,
+                        attributes: &vertex_attributes,
+                    },
+                    wgpu::VertexBufferLayout {
+                        array_stride: instance_buffer_layout.size,
+                        step_mode: wgpu::VertexStepMode::Instance,
+                        attributes: instance_attributes,
+                    },
+                ]
+            } else {
+                &[wgpu::VertexBufferLayout {
+                    array_stride: vertex_buffer_layout.size,
+                    step_mode: wgpu::VertexStepMode::Vertex,
+                    attributes: &vertex_attributes,
+                }]
+            };
+
         Some(
             device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                 label: None,
@@ -459,18 +511,7 @@ impl Renderer {
                     module: &vertex_shader_module.shader_module,
                     entry_point: Some(&vertex_shader.entry_point),
                     compilation_options: wgpu::PipelineCompilationOptions::default(),
-                    buffers: &[
-                        wgpu::VertexBufferLayout {
-                            array_stride: vertex_buffer_layout.size,
-                            step_mode: wgpu::VertexStepMode::Vertex,
-                            attributes: &vertex_attributes,
-                        },
-                        wgpu::VertexBufferLayout {
-                            array_stride: instance_buffer_layout.size,
-                            step_mode: wgpu::VertexStepMode::Instance,
-                            attributes: &instance_attributes,
-                        },
-                    ],
+                    buffers,
                 },
                 primitive: wgpu::PrimitiveState::default(),
                 depth_stencil: None,
