@@ -27,69 +27,48 @@ impl Renderer {
             let mut last_render_target: Option<RenderTarget> = None;
             let mut render_pass: Option<wgpu::RenderPass> = None;
 
+            macro_rules! with_render_pass {
+                ($render_target:expr, $pass_ident:ident, $body:block) => {{
+                    let render_target = $render_target;
+                    let require_new_render_pass = match last_render_target {
+                        Some(last_render_target) => last_render_target != render_target,
+                        None => true,
+                    };
+
+                    if require_new_render_pass || render_pass.is_none() {
+                        last_render_target = Some(render_target);
+                        drop(render_pass);
+                        render_pass = self.create_render_pass_for_render_target(
+                            &mut encoder,
+                            &surface_view,
+                            render_target,
+                        );
+                    }
+
+                    if let Some($pass_ident) = &mut render_pass {
+                        $body
+                    }
+                }};
+            }
+
             for command in commands.iter() {
                 match command {
                     commands::FrameCommand::UpdateUniform(command) => command.execute(self),
                     commands::FrameCommand::UpdateTextureRegion(command) => command.execute(self),
                     commands::FrameCommand::Draw(command) => {
-                        let require_new_render_pass = match last_render_target {
-                            Some(render_target) => render_target != command.render_target,
-                            None => true,
-                        };
-
-                        if require_new_render_pass || render_pass.is_none() {
-                            last_render_target = Some(command.render_target);
-                            drop(render_pass);
-                            render_pass = self.create_render_pass_for_render_target(
-                                &mut encoder,
-                                &surface_view,
-                                command.render_target,
-                            );
-                        }
-
-                        if let Some(render_pass) = &mut render_pass {
-                            command.execute(self, render_pass)
-                        }
+                        with_render_pass!(command.render_target, pass, {
+                            command.execute(self, pass)
+                        });
                     }
                     commands::FrameCommand::DrawMesh(command) => {
-                        let require_new_render_pass = match last_render_target {
-                            Some(render_target) => render_target != command.render_target,
-                            None => true,
-                        };
-
-                        if require_new_render_pass || render_pass.is_none() {
-                            last_render_target = Some(command.render_target);
-                            drop(render_pass);
-                            render_pass = self.create_render_pass_for_render_target(
-                                &mut encoder,
-                                &surface_view,
-                                command.render_target,
-                            );
-                        }
-
-                        if let Some(render_pass) = &mut render_pass {
-                            command.execute(self, render_pass)
-                        }
+                        with_render_pass!(command.render_target, pass, {
+                            command.execute(self, pass)
+                        });
                     }
                     commands::FrameCommand::DrawMeshInstanced(command) => {
-                        let require_new_render_pass = match last_render_target {
-                            Some(render_target) => render_target != command.render_target,
-                            None => true,
-                        };
-
-                        if require_new_render_pass || render_pass.is_none() {
-                            last_render_target = Some(command.render_target);
-                            drop(render_pass);
-                            render_pass = self.create_render_pass_for_render_target(
-                                &mut encoder,
-                                &surface_view,
-                                command.render_target,
-                            );
-                        }
-
-                        if let Some(render_pass) = &mut render_pass {
-                            command.execute(self, render_pass, &mut frame_instance_buffers)
-                        }
+                        with_render_pass!(command.render_target, pass, {
+                            command.execute(self, pass, &mut frame_instance_buffers)
+                        });
                     }
                 }
             }
