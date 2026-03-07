@@ -3,7 +3,6 @@ use glam::UVec2;
 
 use super::{
     AsInstanceBufferLayout, AsUniformBuffer, MaterialId, MeshId, TextureId, UniformId, commands,
-    encode_uniform_bytes,
 };
 
 /// Specify the render target for a draw command.
@@ -22,7 +21,7 @@ pub struct Frame {
 impl Frame {
     /// Queues an update for a previously created uniform.
     pub fn update_uniform<T: AsUniformBuffer>(&mut self, uniform: UniformId, data: &T) {
-        let encoded = match encode_uniform_bytes(data) {
+        let encoded = match data.encode_bytes() {
             Ok(encoded) => encoded,
             Err(error) => {
                 tracing::warn!("Could not encode queued uniform update for {uniform:?}: {error}");
@@ -103,7 +102,15 @@ impl Frame {
                     mesh,
                     material,
                     instance_buffer_layout: I::layout(),
-                    instance_data: bytemuck::cast_slice(instances).to_vec(),
+                    instance_data: match I::encode_slice(instances) {
+                        Ok(encoded) => encoded,
+                        Err(error) => {
+                            tracing::warn!(
+                                "Could not encode instance buffer for draw on {mesh:?}: {error}"
+                            );
+                            return;
+                        }
+                    },
                     instance_count: instances.len() as u32,
                 },
             ));

@@ -497,7 +497,7 @@ impl Renderer {
         {
             buffers.push(wgpu::VertexBufferLayout {
                 array_stride: vertex_buffer_layout.size,
-                step_mode: wgpu::VertexStepMode::Vertex,
+                step_mode: vertex_buffer_layout.step_mode,
                 attributes: vertex_attributes.as_slice(),
             });
         }
@@ -506,7 +506,7 @@ impl Renderer {
         {
             buffers.push(wgpu::VertexBufferLayout {
                 array_stride: instance_buffer_layout.size,
-                step_mode: wgpu::VertexStepMode::Instance,
+                step_mode: instance_buffer_layout.step_mode,
                 attributes: instance_attributes.as_slice(),
             });
         }

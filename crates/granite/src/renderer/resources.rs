@@ -154,21 +154,21 @@ impl Renderer {
         name: &str,
         initial_value: &T,
     ) -> UniformId {
-        let initial_bytes = encode_uniform_bytes(initial_value)
+        let initial_bytes = initial_value
+            .encode_bytes()
             .unwrap_or_else(|error| panic!("Could not encode uniform `{name}`: {error}"));
         let buffer =
             self.create_uniform_buffer(&format!("{name}_uniform"), initial_bytes.as_slice());
         self.uniforms.push(UniformRecord {
             buffer,
             visibility: T::VISIBILITY,
-            min_binding_size: <T as encase::ShaderType>::min_size(),
+            min_binding_size: T::min_binding_size(),
         })
     }
 
-    #[allow(dead_code)]
     /// Writes a complete value into an existing uniform buffer.
     pub fn write_uniform<T: AsUniformBuffer>(&self, uniform: UniformId, data: &T) -> bool {
-        let encoded = match encode_uniform_bytes(data) {
+        let encoded = match data.encode_bytes() {
             Ok(encoded) => encoded,
             Err(error) => {
                 tracing::warn!("Could not encode uniform for {uniform:?}: {error}");

@@ -1,6 +1,6 @@
 use glam::{Vec2, Vec4};
+use granite::macros::{instance_buffer, vertex_buffer};
 use granite::prelude::*;
-use granite_macros::{AsInstanceLayout, AsVertexLayout};
 
 const SHADER: &str = r"
 struct VertexIn {
@@ -32,15 +32,13 @@ struct Minimal {
     material: MaterialId,
 }
 
-#[derive(Clone, Copy, bytemuck::NoUninit, AsVertexLayout)]
-#[repr(C)]
+#[vertex_buffer]
 struct Vertex {
     position: Vec4,
     color: Vec4,
 }
 
-#[derive(Clone, Copy, bytemuck::NoUninit, AsInstanceLayout)]
-#[repr(C)]
+#[instance_buffer]
 struct Instance {
     position: Vec2,
 }

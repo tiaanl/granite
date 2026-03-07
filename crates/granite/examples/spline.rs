@@ -1,6 +1,6 @@
 use glam::{Mat4, UVec2, Vec2};
+use granite::macros::{instance_buffer, uniform_buffer, vertex_buffer};
 use granite::prelude::*;
-use granite_macros::{AsInstanceLayout, AsUniformBuffer, AsVertexLayout};
 
 const SHADER: &str = r"
 struct Uniforms {
@@ -34,20 +34,17 @@ struct Spline {
     pending_projection: Option<ProjectionUniform>,
 }
 
-#[derive(Clone, Copy, bytemuck::NoUninit, AsVertexLayout)]
-#[repr(C)]
+#[vertex_buffer]
 struct Vertex {
     position: Vec2,
 }
 
-#[derive(Clone, Copy, bytemuck::NoUninit, AsInstanceLayout)]
-#[repr(C)]
+#[instance_buffer]
 struct Instance {
     offset: Vec2,
 }
 
-#[derive(Clone, Copy, encase::ShaderType, AsUniformBuffer)]
-#[uniform_visibility(Vertex)]
+#[uniform_buffer(Vertex)]
 struct ProjectionUniform {
     projection: Mat4,
 }

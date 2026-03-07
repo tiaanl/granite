@@ -1,14 +1,41 @@
 use proc_macro::TokenStream;
 use quote::{quote, quote_spanned};
+use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::{
-    Attribute, Data, DeriveInput, Expr, ExprLit, Fields, Lit, Path, Type, parse_macro_input,
+    Attribute, Data, DeriveInput, Expr, ExprLit, Fields, Lit, Path, Token, Type, parse_macro_input,
+    parse_quote,
 };
+
+#[proc_macro_derive(ShaderType, attributes(shader))]
+pub fn derive_shader_type(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+    encase_derive_impl::derive_shader_type(input, &parse_quote!(::granite::encase)).into()
+}
 
 #[proc_macro_derive(AsUniformBuffer, attributes(uniform_visibility))]
 pub fn derive_as_uniform_buffer(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     expand_as_uniform_buffer(input).into()
+}
+
+#[proc_macro_attribute]
+pub fn uniform_buffer(attr: TokenStream, item: TokenStream) -> TokenStream {
+    let visibility = parse_macro_input!(attr as Path);
+    let input = parse_macro_input!(item as DeriveInput);
+    expand_uniform_buffer_attribute(input, visibility).into()
+}
+
+#[proc_macro_attribute]
+pub fn vertex_buffer(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(item as DeriveInput);
+    expand_buffer_layout_attribute(input, LayoutTarget::Vertex).into()
+}
+
+#[proc_macro_attribute]
+pub fn instance_buffer(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(item as DeriveInput);
+    expand_buffer_layout_attribute(input, LayoutTarget::Instance).into()
 }
 
 #[proc_macro_derive(AsVertexLayout, attributes(layout))]
@@ -39,6 +66,46 @@ fn expand_as_uniform_buffer(input: DeriveInput) -> proc_macro2::TokenStream {
     }
 }
 
+fn expand_uniform_buffer_attribute(
+    mut input: DeriveInput,
+    visibility: Path,
+) -> proc_macro2::TokenStream {
+    if let Some(error) = validate_uniform_buffer_attribute_usage(&input) {
+        return error.to_compile_error();
+    }
+
+    ensure_shader_type_derive(&mut input);
+    input
+        .attrs
+        .push(parse_quote!(#[derive(::granite::macros::AsUniformBuffer)]));
+    input
+        .attrs
+        .push(parse_quote!(#[uniform_visibility(#visibility)]));
+
+    quote! {
+        #input
+    }
+}
+
+fn expand_buffer_layout_attribute(
+    mut input: DeriveInput,
+    target: LayoutTarget,
+) -> proc_macro2::TokenStream {
+    if let Some(error) = validate_buffer_layout_attribute_usage(&input, target) {
+        return error.to_compile_error();
+    }
+
+    ensure_shader_type_derive(&mut input);
+    input.attrs.push(match target {
+        LayoutTarget::Vertex => parse_quote!(#[derive(::granite::macros::AsVertexLayout)]),
+        LayoutTarget::Instance => parse_quote!(#[derive(::granite::macros::AsInstanceLayout)]),
+    });
+
+    quote! {
+        #input
+    }
+}
+
 #[derive(Clone, Copy)]
 enum LayoutTarget {
     Vertex,
@@ -57,12 +124,13 @@ fn expand_as_layout(input: DeriveInput, target: LayoutTarget) -> proc_macro2::To
 
     let mut attributes = Vec::new();
     let fields_iter = match &data.fields {
-        Fields::Named(fields) => fields.named.iter().collect::<Vec<_>>(),
-        Fields::Unnamed(fields) => fields.unnamed.iter().collect::<Vec<_>>(),
+        Fields::Named(fields) => fields.named.iter().enumerate().collect::<Vec<_>>(),
+        Fields::Unnamed(fields) => fields.unnamed.iter().enumerate().collect::<Vec<_>>(),
         Fields::Unit => Vec::new(),
     };
+    let field_count = fields_iter.len();
 
-    for field in fields_iter {
+    for (field_index, field) in fields_iter {
         let config = match parse_layout_config(&field.attrs) {
             Ok(config) => config,
             Err(error) => return error.to_compile_error(),
@@ -88,7 +156,10 @@ fn expand_as_layout(input: DeriveInput, target: LayoutTarget) -> proc_macro2::To
         };
 
         attributes.push(quote_spanned! {
-            field.span() => ::granite::renderer::VertexAttribute { format: #format_tokens }
+            field.span() => ::granite::renderer::VertexAttribute {
+                format: #format_tokens,
+                offset: <Self as ::granite::encase::ShaderType>::METADATA.offset(#field_index),
+            }
         });
     }
 
@@ -96,16 +167,23 @@ fn expand_as_layout(input: DeriveInput, target: LayoutTarget) -> proc_macro2::To
         LayoutTarget::Vertex => quote!(::granite::renderer::AsVertexBufferLayout),
         LayoutTarget::Instance => quote!(::granite::renderer::AsInstanceBufferLayout),
     };
+    let step_mode = match target {
+        LayoutTarget::Vertex => quote!(::granite::renderer::VertexStepMode::Vertex),
+        LayoutTarget::Instance => quote!(::granite::renderer::VertexStepMode::Instance),
+    };
 
-    let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
+    let mut generics = input.generics.clone();
+    generics.make_where_clause().predicates.push(parse_quote!(
+        Self: ::granite::encase::ShaderType<
+            ExtraMetadata = ::granite::encase::private::StructMetadata<#field_count>,
+        > + ::granite::encase::ShaderSize
+    ));
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
     quote! {
         impl #impl_generics #layout_trait for #name #ty_generics #where_clause {
-            fn layout() -> ::granite::renderer::VertexBufferLayout {
-                ::granite::renderer::VertexBufferLayout {
-                    size: ::std::mem::size_of::<Self>() as u64,
-                    attributes: vec![#(#attributes),*],
-                }
-            }
+            const STRIDE: u64 = <Self as ::granite::encase::ShaderSize>::SHADER_SIZE.get();
+            const STEP_MODE: ::granite::renderer::VertexStepMode = #step_mode;
+            const ATTRIBUTES: &'static [::granite::renderer::VertexAttribute] = &[#(#attributes),*];
         }
     }
 }
@@ -183,6 +261,77 @@ fn parse_uniform_visibility(attributes: &[Attribute]) -> syn::Result<Path> {
             "missing #[uniform_visibility(...)] attribute",
         )
     })
+}
+
+fn validate_uniform_buffer_attribute_usage(input: &DeriveInput) -> Option<syn::Error> {
+    if has_derive(&input.attrs, "AsUniformBuffer") {
+        return Some(syn::Error::new_spanned(
+            &input.ident,
+            "remove `AsUniformBuffer` from #[derive(...)] when using #[uniform_buffer(...)]",
+        ));
+    }
+
+    if let Some(attribute) = input
+        .attrs
+        .iter()
+        .find(|attribute| attribute.path().is_ident("uniform_visibility"))
+    {
+        return Some(syn::Error::new_spanned(
+            attribute,
+            "remove #[uniform_visibility(...)] when using #[uniform_buffer(...)]",
+        ));
+    }
+
+    None
+}
+
+fn validate_buffer_layout_attribute_usage(
+    input: &DeriveInput,
+    target: LayoutTarget,
+) -> Option<syn::Error> {
+    let derive_name = match target {
+        LayoutTarget::Vertex => "AsVertexLayout",
+        LayoutTarget::Instance => "AsInstanceLayout",
+    };
+    let attribute_name = match target {
+        LayoutTarget::Vertex => "vertex_buffer",
+        LayoutTarget::Instance => "instance_buffer",
+    };
+
+    if has_derive(&input.attrs, derive_name) {
+        return Some(syn::Error::new_spanned(
+            &input.ident,
+            format!("remove `{derive_name}` from #[derive(...)] when using #[{attribute_name}]"),
+        ));
+    }
+
+    None
+}
+
+fn has_derive(attributes: &[Attribute], trait_name: &str) -> bool {
+    attributes
+        .iter()
+        .filter(|attribute| attribute.path().is_ident("derive"))
+        .any(|attribute| {
+            attribute
+                .parse_args_with(Punctuated::<Path, Token![,]>::parse_terminated)
+                .map(|paths| {
+                    paths.into_iter().any(|path| {
+                        path.segments
+                            .last()
+                            .is_some_and(|segment| segment.ident == trait_name)
+                    })
+                })
+                .unwrap_or(false)
+        })
+}
+
+fn ensure_shader_type_derive(input: &mut DeriveInput) {
+    if !has_derive(&input.attrs, "ShaderType") {
+        input
+            .attrs
+            .push(parse_quote!(#[derive(::granite::macros::ShaderType)]));
+    }
 }
 
 fn normalize_shader_visibility_path(path: Path) -> proc_macro2::TokenStream {

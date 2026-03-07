@@ -90,9 +90,21 @@ struct PipelineLayoutKey {
 pub trait AsUniformBuffer: encase::ShaderType + encase::internal::WriteInto {
     /// Shader stage visibility of this uniform.
     const VISIBILITY: ShaderVisibility;
+
+    /// Minimum binding size required for this uniform.
+    fn min_binding_size() -> wgpu::BufferSize {
+        <Self as encase::ShaderType>::min_size()
+    }
+
+    /// Encodes this uniform into GPU-ready bytes.
+    fn encode_bytes(&self) -> encase::internal::Result<Vec<u8>> {
+        encode_uniform_bytes(self)
+    }
 }
 
-fn encode_uniform_bytes<T: AsUniformBuffer>(uniform: &T) -> encase::internal::Result<Vec<u8>> {
+fn encode_uniform_bytes<T: AsUniformBuffer + ?Sized>(
+    uniform: &T,
+) -> encase::internal::Result<Vec<u8>> {
     let mut buffer = encase::UniformBuffer::new(Vec::new());
     buffer.write(uniform)?;
     Ok(buffer.into_inner())
