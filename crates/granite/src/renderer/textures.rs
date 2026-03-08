@@ -1,12 +1,17 @@
 use glam::UVec2;
 
+/// Pixel format for a texture resource.
 pub enum TextureFormat {
+    /// 8-bit RGBA, linear color space.
     Rgba,
+    /// 8-bit RGBA, sRGB color space.
     RgbaSrgb,
+    /// Single-channel 8-bit (red only).
     Mono,
 }
 
 impl TextureFormat {
+    /// Returns the number of bytes per pixel for this format.
     pub fn bytes_per_pixel(&self) -> usize {
         match self {
             TextureFormat::Rgba | TextureFormat::RgbaSrgb => 4,

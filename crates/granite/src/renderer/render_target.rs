@@ -1,13 +1,16 @@
 use glam::UVec2;
 
+/// Pixel format for a render target.
 #[derive(Clone, Copy)]
 pub enum RenderTargetFormat {
+    /// 8-bit RGBA, linear color space.
     Rgba,
+    /// 8-bit RGBA, sRGB color space.
     RgbaSrgb,
 }
 
 impl RenderTargetFormat {
-    pub fn to_wgpu(&self) -> wgpu::TextureFormat {
+    pub(super) fn to_wgpu(&self) -> wgpu::TextureFormat {
         match self {
             RenderTargetFormat::Rgba => wgpu::TextureFormat::Rgba8Unorm,
             RenderTargetFormat::RgbaSrgb => wgpu::TextureFormat::Rgba8UnormSrgb,

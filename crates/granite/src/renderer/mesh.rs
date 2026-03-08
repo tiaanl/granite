@@ -75,21 +75,15 @@ pub struct VertexBufferLayout {
     pub attributes: Vec<VertexAttribute>,
 }
 
-/// GPU mesh buffers and metadata used by draw commands.
-pub struct Mesh {
-    /// Layout handle used to resolve pipeline vertex state.
+pub(super) struct Mesh {
     pub vertex_buffer_layout_id: Id,
-    /// Vertex buffer object.
     pub vertex_buffer: wgpu::Buffer,
-    /// Index buffer object.
     pub index_buffer: wgpu::Buffer,
-    /// Number of indices in the mesh.
     pub index_count: u32,
 }
 
 impl Mesh {
-    /// Creates GPU buffers for a mesh from CPU vertex and index data.
-    pub fn create<V: AsVertexBufferLayout>(
+    pub(super) fn create<V: AsVertexBufferLayout>(
         device: &wgpu::Device,
         name: &str,
         vertex_buffer_layout_id: Id,

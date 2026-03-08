@@ -8,7 +8,9 @@ use super::{
 /// Specify the render target for a draw command.
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum RenderTarget {
+    /// Draw directly to the window surface.
     Surface,
+    /// Draw to a custom off-screen render target.
     Custom(RenderTargetId),
 }
 
