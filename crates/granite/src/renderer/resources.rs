@@ -66,36 +66,114 @@ impl Renderer {
     }
 
     /// Creates a new render target that can be drawn into and later bound as a texture.
+    ///
+    /// No GPU texture is allocated at this point; allocation is deferred to the first draw call
+    /// that uses this target.
+    ///
+    /// The `size` parameter controls how the render target's dimensions are determined:
+    /// - [`RenderTargetSize::SurfaceSize`]: automatically tracks the render surface size.
+    ///   Cannot be manually resized; resize happens automatically on first use after a window resize.
+    /// - [`RenderTargetSize::Custom`]: fixed size managed manually via [`Frame::resize_render_target`].
     pub fn create_render_target(
         &mut self,
         name: &str,
-        size: UVec2,
+        size: RenderTargetSize,
         format: RenderTargetFormat,
     ) -> RenderTargetId {
-        let record = render_target::RenderTargetRecord::create(&self.device, name, size, format);
+        let record = match size {
+            RenderTargetSize::SurfaceSize => {
+                render_target::RenderTargetRecord::create_surface_sized(name, format)
+            }
+            RenderTargetSize::Custom(s) => {
+                render_target::RenderTargetRecord::create_custom(name, s, format)
+            }
+        };
         self.render_targets.push(record)
     }
 
     /// Recreates a render target at a new size, keeping the same format.
     ///
+    /// Only valid for render targets created with [`RenderTargetSize::Custom`]. Calling this on
+    /// a [`RenderTargetSize::SurfaceSize`] target logs a warning and does nothing; those targets
+    /// resize automatically when the surface is resized.
+    ///
     /// Only bind groups that sampled this specific render target are evicted;
     /// all others remain cached. Evicted bind groups are lazily recreated on
     /// the next draw call.
     pub fn resize_render_target(&mut self, id: RenderTargetId, size: UVec2) {
-        let Some(format) = self.render_targets.get(id).map(|r| r.format) else {
+        let Some(record) = self.render_targets.get(id) else {
+            tracing::warn!("resize_render_target: invalid render target id ({id:?})");
+            return;
+        };
+        if matches!(record.size_mode, render_target::RenderTargetSize::SurfaceSize) {
+            tracing::warn!(
+                "resize_render_target: render target ({id:?}) uses SurfaceSize and resizes \
+                 automatically; manual resize is not allowed"
+            );
+            return;
+        }
+        self.resize_render_target_unchecked(id, size);
+    }
+
+    /// Ensures a render target's GPU texture is allocated and up to date before a draw call.
+    ///
+    /// - `SurfaceSize`: allocates if not yet created, or reallocates if the surface was resized.
+    /// - `Custom`: allocates if not yet created. Size only changes via an explicit
+    ///   `resize_render_target` call, which invalidates the texture; it is reallocated here on
+    ///   next use.
+    /// - `RenderTarget::Surface`: no-op.
+    pub(super) fn ensure_render_target_ready(&mut self, render_target: RenderTarget) {
+        let RenderTarget::Custom(id) = render_target else {
+            return;
+        };
+        let Some(record) = self.render_targets.get(id) else {
+            return;
+        };
+
+        let needs_allocation = match record.size_mode {
+            render_target::RenderTargetSize::SurfaceSize => {
+                record.view.is_none() || record.size != self.surface_size()
+            }
+            render_target::RenderTargetSize::Custom(_) => record.view.is_none(),
+        };
+
+        if !needs_allocation {
+            return;
+        }
+
+        let size = match record.size_mode {
+            render_target::RenderTargetSize::SurfaceSize => self.surface_size(),
+            render_target::RenderTargetSize::Custom(s) => s,
+        };
+
+        // Evict stale bind groups before reallocating, since the old TextureView is going away.
+        self.bind_groups.retain_keys(|key| {
+            !key.bindings
+                .iter()
+                .any(|b| b.resource == BindGroupBindingResourceKey::RenderTarget(id))
+        });
+
+        if let Some(record) = self.render_targets.get_mut(id) {
+            record.allocate(&self.device, size);
+        }
+    }
+
+    /// Invalidates the GPU texture for a `Custom` render target at a new size.
+    ///
+    /// The texture is not reallocated immediately; it is created lazily on the next draw call
+    /// that uses this target. Stale bind groups are evicted now so they are recreated on next use.
+    pub(super) fn resize_render_target_unchecked(&mut self, id: RenderTargetId, size: UVec2) {
+        let Some(record) = self.render_targets.get_mut(id) else {
             tracing::warn!("resize_render_target: invalid render target id ({id:?})");
             return;
         };
 
-        let new_record =
-            render_target::RenderTargetRecord::create(&self.device, "render_target", size, format);
+        record.size_mode = render_target::RenderTargetSize::Custom(size);
+        record.size = size;
+        record._texture = None;
+        record.view = None;
 
-        if let Some(record) = self.render_targets.get_mut(id) {
-            *record = new_record;
-        }
-
-        // Evict only bind groups that reference this render target's TextureView,
-        // since that view is now stale. Unrelated bind groups are left intact.
+        // Evict bind groups referencing the now-invalid TextureView.
         self.bind_groups.retain_keys(|key| {
             !key.bindings
                 .iter()

@@ -73,6 +73,21 @@ where
     #[cfg(not(debug_assertions))]
     fn verify_id(_id: Id) {}
 
+    /// Iterates over all stored values, yielding `(Id, &T)` pairs.
+    #[inline]
+    pub fn iter(&self) -> impl Iterator<Item = (Id, &T)> {
+        self.data.iter().map(|(index, value)| {
+            (
+                Id(
+                    index,
+                    #[cfg(debug_assertions)]
+                    Self::type_id(),
+                ),
+                value,
+            )
+        })
+    }
+
     #[cfg(debug_assertions)]
     const fn type_id() -> std::any::TypeId {
         std::any::TypeId::of::<T>()

@@ -44,7 +44,7 @@ use winit::window::Window;
 pub use frame::*;
 pub use mesh::*;
 
-pub use render_target::RenderTargetFormat;
+pub use render_target::{RenderTargetFormat, RenderTargetSize};
 pub use sampler::*;
 pub use textures::TextureFormat;
 

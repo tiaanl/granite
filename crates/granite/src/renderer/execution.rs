@@ -38,6 +38,7 @@ impl Renderer {
                     if require_new_render_pass || render_pass.is_none() {
                         last_render_target = Some(render_target);
                         drop(render_pass);
+                        self.ensure_render_target_ready(render_target);
                         render_pass = self.create_render_pass_for_render_target(
                             &mut encoder,
                             &surface_view,
@@ -92,7 +93,7 @@ impl Renderer {
             RenderTarget::Surface => surface_view,
             RenderTarget::Custom(id) => {
                 let record = self.render_targets.get(id)?;
-                &record.view
+                record.view.as_ref()?
             }
         };
 
@@ -394,7 +395,7 @@ impl Renderer {
                     }
                     BindGroupBindingResourceKey::RenderTarget(render_target_id) => {
                         let render_target = self.render_targets.get(render_target_id)?;
-                        wgpu::BindingResource::TextureView(&render_target.view)
+                        wgpu::BindingResource::TextureView(render_target.view.as_ref()?)
                     }
                     BindGroupBindingResourceKey::Sampler(sampler_id) => {
                         let sampler = self.samplers.get(sampler_id)?;

@@ -3,7 +3,7 @@
 //!
 //! Pass 1: colored triangle → offscreen render target (RenderTarget::Custom)
 //! Pass 2: fullscreen blit of render target → surface (RenderTarget::Surface)
-use glam::{UVec2, Vec4};
+use glam::Vec4;
 use granite::macros::vertex_buffer;
 use granite::prelude::*;
 
@@ -68,19 +68,18 @@ struct PostProcess {
     scene_material: MaterialId,
     // Pass 2
     post_material: MaterialId,
-    // Pending render target resize, applied at the start of the next frame.
-    pending_resize: Option<UVec2>,
 }
 
 impl SceneBuilder for PostProcessBuilder {
     type Target = PostProcess;
 
     fn build(&self, renderer: &mut Renderer) -> Self::Target {
-        let surface_size = renderer.surface_size();
-
-        // Offscreen target at the same resolution as the surface.
-        let render_target =
-            renderer.create_render_target("offscreen", surface_size, RenderTargetFormat::Rgba);
+        // Offscreen target that automatically matches and tracks the surface resolution.
+        let render_target = renderer.create_render_target(
+            "offscreen",
+            RenderTargetSize::SurfaceSize,
+            RenderTargetFormat::Rgba,
+        );
 
         // Pass 1 — colored triangle
         let vertices = &[
@@ -121,26 +120,12 @@ impl SceneBuilder for PostProcessBuilder {
             scene_mesh,
             scene_material,
             post_material,
-            pending_resize: None,
         }
     }
 }
 
 impl Scene for PostProcess {
-    fn event(&mut self, event: SceneEvent) {
-        match event {
-            SceneEvent::WindowResized { width, height } => {
-                self.pending_resize = Some(UVec2::new(width, height));
-            }
-        }
-    }
-
     fn render(&mut self, frame: &mut Frame) {
-        // Apply any pending render target resize before drawing.
-        if let Some(size) = self.pending_resize.take() {
-            frame.resize_render_target(self.render_target, size);
-        }
-
         // Pass 1: draw the triangle into the offscreen render target.
         frame.draw_mesh(
             RenderTarget::Custom(self.render_target),
