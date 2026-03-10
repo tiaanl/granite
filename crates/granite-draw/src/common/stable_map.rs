@@ -5,11 +5,6 @@ use std::hash::Hash;
 
 use super::{Id, StableVec};
 
-/// Keyed storage that also gives stable [`Id`] handles for values.
-///
-/// Use this when you need both:
-/// - lookup by a semantic key (`K`)
-/// - stable IDs for command lists, caches, or cross-system references
 pub struct StableMap<K, V> {
     data: StableVec<V>,
     lookup: HashMap<K, Id>,
@@ -20,53 +15,41 @@ where
     K: Eq + Hash,
     V: 'static,
 {
-    /// Returns `true` when no values are currently stored.
     #[inline]
     pub fn is_empty(&self) -> bool {
         self.data.is_empty()
     }
 
-    /// Returns the number of currently stored values.
     #[inline]
     pub fn len(&self) -> usize {
         self.data.len()
     }
 
-    /// Gets a value by its stable [`Id`].
     #[inline]
     pub fn get(&self, id: Id) -> Option<&V> {
         self.data.get(id)
     }
 
-    /// Gets a mutable value by its stable [`Id`].
     #[inline]
     pub fn get_mut(&mut self, id: Id) -> Option<&mut V> {
         self.data.get_mut(id)
     }
 
-    /// Inserts a value and returns its [`Id`] without associating a key.
-    ///
-    /// Use this only when you intentionally want ID-only access.
     #[inline]
     pub fn push(&mut self, value: V) -> Id {
         self.data.push(value)
     }
 
-    /// Returns the [`Id`] associated with `key`, if present.
     #[inline]
     pub fn get_id(&self, key: &K) -> Option<Id> {
         self.lookup.get(key).copied()
     }
 
-    /// Gets a value by key.
     #[inline]
     pub fn get_by_key(&self, key: &K) -> Option<&V> {
         self.get_id(key).and_then(|id| self.data.get(id))
     }
 
-    /// Inserts `value`, associates it with `key`, and returns the new [`Id`].
-    ///
-    /// If `key` already exists, it is updated to point at the new value.
     #[inline]
     pub fn insert_keyed(&mut self, key: K, value: V) -> Id {
         let id = self.data.push(value);
@@ -74,7 +57,6 @@ where
         id
     }
 
-    /// Removes all entries for which `keep(key)` returns `false`.
     pub fn retain_keys<F>(&mut self, mut keep: F)
     where
         F: FnMut(&K) -> bool,
@@ -89,7 +71,6 @@ where
         });
     }
 
-    /// Returns the existing [`Id`] for `key`, or inserts a newly created value.
     #[inline]
     pub fn get_or_insert_with<F>(&mut self, key: K, create: F) -> Id
     where

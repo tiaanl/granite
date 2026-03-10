@@ -10,7 +10,7 @@ pub enum RenderTargetFormat {
 }
 
 impl RenderTargetFormat {
-    pub(super) fn to_wgpu(&self) -> wgpu::TextureFormat {
+    pub(super) fn to_wgpu(self) -> wgpu::TextureFormat {
         match self {
             RenderTargetFormat::Rgba => wgpu::TextureFormat::Rgba8Unorm,
             RenderTargetFormat::RgbaSrgb => wgpu::TextureFormat::Rgba8UnormSrgb,

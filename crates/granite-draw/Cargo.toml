@@ -1,0 +1,13 @@
+[package]
+name = "granite-draw"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+encase = "0.12"
+generational-arena = "0.2"
+granite = { path = "../granite" }
+granite-macros = { path = "../granite-macros" }
+glam = "0.30"
+tracing = "0.1"
+wgpu = "28.0"

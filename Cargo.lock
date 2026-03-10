@@ -622,15 +622,25 @@ dependencies = [
 name = "granite"
 version = "0.1.0"
 dependencies = [
- "encase",
- "generational-arena",
  "glam",
- "granite-macros",
  "pollster",
  "thiserror 2.0.18",
  "tracing",
  "wgpu",
  "winit",
+]
+
+[[package]]
+name = "granite-draw"
+version = "0.1.0"
+dependencies = [
+ "encase",
+ "generational-arena",
+ "glam",
+ "granite",
+ "granite-macros",
+ "tracing",
+ "wgpu",
 ]
 
 [[package]]

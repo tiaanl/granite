@@ -1,3 +1,5 @@
+use crate::draw_list::RenderTarget;
+
 use super::*;
 
 pub struct PreparedDraw {
@@ -7,7 +9,8 @@ pub struct PreparedDraw {
 
 impl PreparedDraw {
     pub fn try_new(
-        renderer: &mut Renderer,
+        renderer: &mut DrawListRenderer,
+        surface_format: wgpu::TextureFormat,
         render_target: RenderTarget,
         mesh: Option<MeshId>,
         material: MaterialId,
@@ -52,7 +55,7 @@ impl PreparedDraw {
         };
 
         let key = RenderPipelineKey {
-            render_target,
+            render_target_format: renderer.render_target_format(surface_format, render_target)?,
             vertex_buffer_layout,
             instance_buffer_layout,
             pipeline_layout: pipeline_layout_id,

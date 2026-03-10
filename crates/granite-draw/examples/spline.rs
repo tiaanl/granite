@@ -1,6 +1,14 @@
 use glam::{Mat4, UVec2, Vec2};
-use granite::macros::{instance_buffer, uniform_buffer, vertex_buffer};
-use granite::prelude::*;
+use granite::{
+    app::SceneBuilder,
+    renderer::{Frame, Renderer},
+    scene::{Scene, SceneEvent},
+};
+use granite_draw::{
+    DrawListRenderer, MaterialId, MeshId, UniformId,
+    draw_list::{DrawList, RenderTarget},
+};
+use granite_macros::{instance_buffer, uniform_buffer, vertex_buffer};
 
 const SHADER: &str = r"
 struct Uniforms {
@@ -27,6 +35,7 @@ struct VertexIn {
 struct SplineBuilder;
 
 struct Spline {
+    draw_list_renderer: DrawListRenderer,
     mesh: MeshId,
     material: MaterialId,
     projection_uniform: UniformId,
@@ -73,6 +82,7 @@ impl SceneBuilder for SplineBuilder {
     type Target = Spline;
 
     fn build(&self, renderer: &mut Renderer) -> Self::Target {
+        let mut draw_list_renderer = DrawListRenderer::new(renderer);
         let points = vec![
             Vec2::new(100.0, 100.0),
             Vec2::new(1000.0, 400.0),
@@ -89,7 +99,8 @@ impl SceneBuilder for SplineBuilder {
             .collect();
         let indices: Vec<u32> = (0..vertices.len() as u32).collect();
 
-        let mesh = renderer.create_mesh("spline", vertices.as_slice(), indices.as_slice());
+        let mesh =
+            draw_list_renderer.create_mesh("spline", vertices.as_slice(), indices.as_slice());
 
         let bounds = vertices
             .iter()
@@ -100,14 +111,16 @@ impl SceneBuilder for SplineBuilder {
             world_size,
             UVec2::new(world_size.x as u32, world_size.y as u32),
         );
-        let projection_uniform = renderer.create_uniform("spline_projection", &initial_projection);
+        let projection_uniform =
+            draw_list_renderer.create_uniform("spline_projection", &initial_projection);
 
-        let material = renderer
+        let material = draw_list_renderer
             .create_material_from_shader("spline", SHADER)
             .uniform(0, 0, projection_uniform)
             .build();
 
         Spline {
+            draw_list_renderer,
             mesh,
             material,
             projection_uniform,
@@ -130,12 +143,15 @@ impl Scene for Spline {
     }
 
     fn render(&mut self, frame: &mut Frame) {
+        let mut draw_list = DrawList::new();
+
         if let Some(projection) = self.pending_projection.take() {
-            frame.update_uniform(self.projection_uniform, &projection);
+            draw_list.update_uniform(self.projection_uniform, &projection);
         }
 
         let instances = [Instance { offset: Vec2::ZERO }];
-        frame.draw_mesh_instanced(RenderTarget::Surface, self.mesh, self.material, &instances);
+        draw_list.draw_mesh_instanced(RenderTarget::Surface, self.mesh, self.material, &instances);
+        self.draw_list_renderer.submit_draw_list(frame, draw_list);
     }
 }
 

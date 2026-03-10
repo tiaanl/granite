@@ -137,7 +137,7 @@ where
                 input.reset_current_frame();
 
                 {
-                    let mut frame = renderer.begin_frame();
+                    let mut frame = renderer.begin_frame().expect("Could not begin frame");
 
                     scene.render(&mut frame);
 

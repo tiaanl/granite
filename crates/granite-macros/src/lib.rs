@@ -10,7 +10,7 @@ use syn::{
 #[proc_macro_derive(ShaderType, attributes(shader))]
 pub fn derive_shader_type(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
-    encase_derive_impl::derive_shader_type(input, &parse_quote!(::granite::encase)).into()
+    encase_derive_impl::derive_shader_type(input, &parse_quote!(::granite_draw::encase)).into()
 }
 
 #[proc_macro_derive(AsUniformBuffer, attributes(uniform_visibility))]
@@ -60,8 +60,8 @@ fn expand_as_uniform_buffer(input: DeriveInput) -> proc_macro2::TokenStream {
     };
 
     quote! {
-        impl #impl_generics ::granite::renderer::AsUniformBuffer for #name #ty_generics #where_clause {
-            const VISIBILITY: ::granite::renderer::ShaderVisibility = #visibility;
+        impl #impl_generics ::granite_draw::AsUniformBuffer for #name #ty_generics #where_clause {
+            const VISIBILITY: ::granite_draw::ShaderVisibility = #visibility;
         }
     }
 }
@@ -77,7 +77,7 @@ fn expand_uniform_buffer_attribute(
     ensure_shader_type_derive(&mut input);
     input
         .attrs
-        .push(parse_quote!(#[derive(::granite::macros::AsUniformBuffer)]));
+        .push(parse_quote!(#[derive(::granite_macros::AsUniformBuffer)]));
     input
         .attrs
         .push(parse_quote!(#[uniform_visibility(#visibility)]));
@@ -97,8 +97,8 @@ fn expand_buffer_layout_attribute(
 
     ensure_shader_type_derive(&mut input);
     input.attrs.push(match target {
-        LayoutTarget::Vertex => parse_quote!(#[derive(::granite::macros::AsVertexLayout)]),
-        LayoutTarget::Instance => parse_quote!(#[derive(::granite::macros::AsInstanceLayout)]),
+        LayoutTarget::Vertex => parse_quote!(#[derive(::granite_macros::AsVertexLayout)]),
+        LayoutTarget::Instance => parse_quote!(#[derive(::granite_macros::AsInstanceLayout)]),
     });
 
     quote! {
@@ -156,34 +156,34 @@ fn expand_as_layout(input: DeriveInput, target: LayoutTarget) -> proc_macro2::To
         };
 
         attributes.push(quote_spanned! {
-            field.span() => ::granite::renderer::VertexAttribute {
+            field.span() => ::granite_draw::mesh::VertexAttribute {
                 format: #format_tokens,
-                offset: <Self as ::granite::encase::ShaderType>::METADATA.offset(#field_index),
+                offset: <Self as ::granite_draw::encase::ShaderType>::METADATA.offset(#field_index),
             }
         });
     }
 
     let layout_trait = match target {
-        LayoutTarget::Vertex => quote!(::granite::renderer::AsVertexBufferLayout),
-        LayoutTarget::Instance => quote!(::granite::renderer::AsInstanceBufferLayout),
+        LayoutTarget::Vertex => quote!(::granite_draw::mesh::AsVertexBufferLayout),
+        LayoutTarget::Instance => quote!(::granite_draw::mesh::AsInstanceBufferLayout),
     };
     let step_mode = match target {
-        LayoutTarget::Vertex => quote!(::granite::renderer::VertexStepMode::Vertex),
-        LayoutTarget::Instance => quote!(::granite::renderer::VertexStepMode::Instance),
+        LayoutTarget::Vertex => quote!(::granite_draw::mesh::VertexStepMode::Vertex),
+        LayoutTarget::Instance => quote!(::granite_draw::mesh::VertexStepMode::Instance),
     };
 
     let mut generics = input.generics.clone();
     generics.make_where_clause().predicates.push(parse_quote!(
-        Self: ::granite::encase::ShaderType<
-            ExtraMetadata = ::granite::encase::private::StructMetadata<#field_count>,
-        > + ::granite::encase::ShaderSize
+        Self: ::granite_draw::encase::ShaderType<
+            ExtraMetadata = ::granite_draw::encase::private::StructMetadata<#field_count>,
+        > + ::granite_draw::encase::ShaderSize
     ));
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
     quote! {
         impl #impl_generics #layout_trait for #name #ty_generics #where_clause {
-            const STRIDE: u64 = <Self as ::granite::encase::ShaderSize>::SHADER_SIZE.get();
-            const STEP_MODE: ::granite::renderer::VertexStepMode = #step_mode;
-            const ATTRIBUTES: &'static [::granite::renderer::VertexAttribute] = &[#(#attributes),*];
+            const STRIDE: u64 = <Self as ::granite_draw::encase::ShaderSize>::SHADER_SIZE.get();
+            const STEP_MODE: ::granite_draw::mesh::VertexStepMode = #step_mode;
+            const ATTRIBUTES: &'static [::granite_draw::mesh::VertexAttribute] = &[#(#attributes),*];
         }
     }
 }
@@ -330,14 +330,14 @@ fn ensure_shader_type_derive(input: &mut DeriveInput) {
     if !has_derive(&input.attrs, "ShaderType") {
         input
             .attrs
-            .push(parse_quote!(#[derive(::granite::macros::ShaderType)]));
+            .push(parse_quote!(#[derive(::granite_macros::ShaderType)]));
     }
 }
 
 fn normalize_shader_visibility_path(path: Path) -> proc_macro2::TokenStream {
     if path.segments.len() == 1 {
         let ident = &path.segments[0].ident;
-        quote!(::granite::renderer::ShaderVisibility::#ident)
+        quote!(::granite_draw::ShaderVisibility::#ident)
     } else {
         quote!(#path)
     }
@@ -346,7 +346,7 @@ fn normalize_shader_visibility_path(path: Path) -> proc_macro2::TokenStream {
 fn normalize_vertex_format_path(path: Path) -> proc_macro2::TokenStream {
     if path.segments.len() == 1 {
         let ident = &path.segments[0].ident;
-        quote!(::granite::renderer::VertexFormat::#ident)
+        quote!(::granite_draw::mesh::VertexFormat::#ident)
     } else {
         quote!(#path)
     }
@@ -372,7 +372,7 @@ fn infer_vertex_format_path(ty: &Type) -> Option<proc_macro2::TokenStream> {
                 _ => return None,
             };
             let ident = syn::Ident::new(format_ident, ident.span());
-            Some(quote!(::granite::renderer::VertexFormat::#ident))
+            Some(quote!(::granite_draw::mesh::VertexFormat::#ident))
         }
         Type::Array(type_array) => {
             let len = parse_array_len(&type_array.len)?;
@@ -396,7 +396,7 @@ fn infer_vertex_format_path(ty: &Type) -> Option<proc_macro2::TokenStream> {
                 _ => return None,
             };
             let ident = syn::Ident::new(format_ident, type_array.span());
-            Some(quote!(::granite::renderer::VertexFormat::#ident))
+            Some(quote!(::granite_draw::mesh::VertexFormat::#ident))
         }
         _ => None,
     }

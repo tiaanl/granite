@@ -1,5 +1,9 @@
-use super::{prepared_draw::PreparedDraw, *};
 use wgpu::util::DeviceExt;
+
+use crate::{
+    DrawListRenderer, MaterialId, MeshId, RenderTargetId, TextureId, UniformId,
+    draw_list::RenderTarget, mesh::VertexBufferLayout, prepared_draw::PreparedDraw,
+};
 
 pub(super) enum FrameCommand {
     UpdateUniform(UpdateUniform),
@@ -17,14 +21,24 @@ pub(super) struct Draw {
 }
 
 impl Draw {
-    pub(super) fn execute(&self, renderer: &mut Renderer, render_pass: &mut wgpu::RenderPass<'_>) {
+    pub(super) fn execute(
+        &self,
+        renderer: &mut DrawListRenderer,
+        surface_format: wgpu::TextureFormat,
+        render_pass: &mut wgpu::RenderPass<'_>,
+    ) {
         if self.vertex_count == 0 {
             return;
         }
 
-        let Some(prepared_draw) =
-            PreparedDraw::try_new(renderer, self.render_target, None, self.material, None)
-        else {
+        let Some(prepared_draw) = PreparedDraw::try_new(
+            renderer,
+            surface_format,
+            self.render_target,
+            None,
+            self.material,
+            None,
+        ) else {
             return;
         };
 
@@ -43,9 +57,15 @@ pub(super) struct DrawMesh {
 }
 
 impl DrawMesh {
-    pub(super) fn execute(&self, renderer: &mut Renderer, render_pass: &mut wgpu::RenderPass<'_>) {
+    pub(super) fn execute(
+        &self,
+        renderer: &mut DrawListRenderer,
+        surface_format: wgpu::TextureFormat,
+        render_pass: &mut wgpu::RenderPass<'_>,
+    ) {
         let Some(prepared_draw) = PreparedDraw::try_new(
             renderer,
+            surface_format,
             self.render_target,
             Some(self.mesh),
             self.material,
@@ -74,7 +94,8 @@ pub(super) struct DrawMeshInstanced {
 impl DrawMeshInstanced {
     pub(super) fn execute(
         &self,
-        renderer: &mut Renderer,
+        renderer: &mut DrawListRenderer,
+        surface_format: wgpu::TextureFormat,
         render_pass: &mut wgpu::RenderPass<'_>,
         frame_instance_buffers: &mut Vec<wgpu::Buffer>,
     ) {
@@ -84,6 +105,7 @@ impl DrawMeshInstanced {
 
         let Some(prepared_draw) = PreparedDraw::try_new(
             renderer,
+            surface_format,
             self.render_target,
             Some(self.mesh),
             self.material,
@@ -117,7 +139,7 @@ pub(super) struct UpdateUniform {
 }
 
 impl UpdateUniform {
-    pub(super) fn execute(&self, renderer: &mut Renderer) {
+    pub(super) fn execute(&self, renderer: &mut DrawListRenderer) {
         let _ = renderer.write_uniform_bytes(self.uniform, self.data.as_slice());
     }
 }
@@ -130,7 +152,7 @@ pub(super) struct UpdateTextureRegion {
 }
 
 impl UpdateTextureRegion {
-    pub(super) fn execute(&self, renderer: &mut Renderer) {
+    pub(super) fn execute(&self, renderer: &mut DrawListRenderer) {
         let _ = renderer.write_texture_rgba8_region(
             self.texture,
             self.origin,
@@ -146,13 +168,13 @@ pub(super) struct ResizeRenderTarget {
 }
 
 impl ResizeRenderTarget {
-    pub(super) fn execute(&self, renderer: &mut Renderer) {
+    pub(super) fn execute(&self, renderer: &mut DrawListRenderer) {
         renderer.resize_render_target(self.render_target, self.size);
     }
 }
 
 fn bind_draw_state(
-    renderer: &Renderer,
+    renderer: &DrawListRenderer,
     render_pass: &mut wgpu::RenderPass<'_>,
     prepared_draw: &PreparedDraw,
     mesh_id: MeshId,
@@ -173,7 +195,7 @@ fn bind_draw_state(
 }
 
 fn bind_pipeline_and_groups(
-    renderer: &Renderer,
+    renderer: &DrawListRenderer,
     render_pass: &mut wgpu::RenderPass<'_>,
     prepared_draw: &PreparedDraw,
 ) -> bool {

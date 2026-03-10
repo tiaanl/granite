@@ -4,9 +4,6 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-granite-macros = { path = "../granite-macros" }
-encase = "0.12"
-generational-arena = "0.2"
 glam = { version = "0.30", features = ["encase"] }
 pollster = "0.4"
 thiserror = "2.0"

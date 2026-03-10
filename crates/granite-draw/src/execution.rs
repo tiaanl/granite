@@ -1,86 +1,65 @@
+use granite::renderer::Frame;
+
+use crate::draw_list::{DrawList, RenderTarget};
+
 use super::*;
 
-impl Renderer {
-    /// Begins recording commands for a new frame.
-    pub fn begin_frame(&self) -> frame::Frame {
-        frame::Frame::default()
+impl DrawListRenderer {
+    /// Begins recording a new higher-level draw list.
+    ///
+    /// This is a convenience wrapper around [`DrawList::new`].
+    pub fn create_draw_list(&self) -> DrawList {
+        DrawList::new()
     }
 
-    /// Executes and submits all commands in a frame.
-    pub fn submit_frame(&mut self, frame: frame::Frame) -> Result<(), SubmitFrameError> {
-        let frame::Frame { commands } = frame;
-
-        let current_texture = self.get_current_surface_texture()?;
-
-        let surface_view = current_texture
-            .texture
-            .create_view(&wgpu::TextureViewDescriptor::default());
-
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("frame_encoder"),
-            });
+    /// Executes all commands in a draw list into the provided frame.
+    pub fn submit_draw_list(&mut self, frame: &mut Frame, draw_list: DrawList) {
+        let DrawList { commands } = draw_list;
         let mut frame_instance_buffers: Vec<wgpu::Buffer> = Vec::new();
 
-        {
-            let mut last_render_target: Option<RenderTarget> = None;
-            let mut render_pass: Option<wgpu::RenderPass> = None;
+        for command in commands.iter() {
+            match command {
+                commands::FrameCommand::UpdateUniform(command) => command.execute(self),
+                commands::FrameCommand::UpdateTextureRegion(command) => command.execute(self),
+                commands::FrameCommand::ResizeRenderTarget(command) => command.execute(self),
+                commands::FrameCommand::Draw(command) => {
+                    self.ensure_render_target_ready(frame, command.render_target);
+                    if let Some(mut pass) = self.create_render_pass_for_render_target(
+                        &mut frame.encoder,
+                        &frame.view,
+                        command.render_target,
+                    ) {
+                        command.execute(self, frame.surface_format, &mut pass);
+                    }
+                }
+                commands::FrameCommand::DrawMesh(command) => {
+                    self.ensure_render_target_ready(frame, command.render_target);
 
-            macro_rules! with_render_pass {
-                ($render_target:expr, $pass_ident:ident, $body:block) => {{
-                    let render_target = $render_target;
-                    let require_new_render_pass = match last_render_target {
-                        Some(last_render_target) => last_render_target != render_target,
-                        None => true,
-                    };
-
-                    if require_new_render_pass || render_pass.is_none() {
-                        last_render_target = Some(render_target);
-                        drop(render_pass);
-                        self.ensure_render_target_ready(render_target);
-                        render_pass = self.create_render_pass_for_render_target(
-                            &mut encoder,
-                            &surface_view,
-                            render_target,
+                    if let Some(mut pass) = self.create_render_pass_for_render_target(
+                        &mut frame.encoder,
+                        &frame.view,
+                        command.render_target,
+                    ) {
+                        command.execute(self, frame.surface_format, &mut pass);
+                    }
+                }
+                commands::FrameCommand::DrawMeshInstanced(command) => {
+                    self.ensure_render_target_ready(frame, command.render_target);
+                    if let Some(mut pass) = self.create_render_pass_for_render_target(
+                        &mut frame.encoder,
+                        &frame.view,
+                        command.render_target,
+                    ) {
+                        command.execute(
+                            self,
+                            frame.surface_format,
+                            &mut pass,
+                            &mut frame_instance_buffers,
                         );
-                    }
-
-                    if let Some($pass_ident) = &mut render_pass {
-                        $body
-                    }
-                }};
-            }
-
-            for command in commands.iter() {
-                match command {
-                    commands::FrameCommand::UpdateUniform(command) => command.execute(self),
-                    commands::FrameCommand::UpdateTextureRegion(command) => command.execute(self),
-                    commands::FrameCommand::ResizeRenderTarget(command) => command.execute(self),
-                    commands::FrameCommand::Draw(command) => {
-                        with_render_pass!(command.render_target, pass, {
-                            command.execute(self, pass)
-                        });
-                    }
-                    commands::FrameCommand::DrawMesh(command) => {
-                        with_render_pass!(command.render_target, pass, {
-                            command.execute(self, pass)
-                        });
-                    }
-                    commands::FrameCommand::DrawMeshInstanced(command) => {
-                        with_render_pass!(command.render_target, pass, {
-                            command.execute(self, pass, &mut frame_instance_buffers)
-                        });
                     }
                 }
             }
         }
-
-        self.queue.submit(std::iter::once(encoder.finish()));
-
-        current_texture.present();
-
-        Ok(())
     }
 
     fn create_render_pass_for_render_target<'encoder>(
@@ -104,39 +83,12 @@ impl Renderer {
                 depth_slice: None,
                 resolve_target: None,
                 ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                    load: wgpu::LoadOp::Load,
                     store: wgpu::StoreOp::Store,
                 },
             })],
             ..Default::default()
         }))
-    }
-
-    fn get_current_surface_texture(&mut self) -> Result<wgpu::SurfaceTexture, SubmitFrameError> {
-        match self.surface.get_current_texture() {
-            Ok(current_texture) => Ok(current_texture),
-
-            Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
-                tracing::warn!("Render surface lost or outdated, reconfiguring and retrying.");
-                self.surface.configure(&self.device, &self.surface_config);
-
-                match self.surface.get_current_texture() {
-                    Ok(current_texture) => Ok(current_texture),
-
-                    Err(error) => {
-                        tracing::warn!(
-                            "Could not acquire render surface texture after reconfigure! ({error})"
-                        );
-                        Err(SubmitFrameError::AcquireCurrentFrame(error.to_string()))
-                    }
-                }
-            }
-
-            Err(error) => {
-                tracing::warn!("Could not acquire render surface texture! ({error})");
-                Err(SubmitFrameError::AcquireCurrentFrame(error.to_string()))
-            }
-        }
     }
 
     pub(super) fn get_or_create_vertex_buffer_layout(&mut self, layout: VertexBufferLayout) -> Id {
@@ -188,7 +140,7 @@ impl Renderer {
                 match draw_binding.resource {
                     bindings::DrawBindingResource::Uniform(uniform_binding_id) => {
                         let Some(uniform) = self.uniforms.get(uniform_binding_id) else {
-                            tracing::warn!("Invalid uniform id ({uniform_binding_id:?})",);
+                            tracing::warn!("Invalid uniform id ({uniform_binding_id:?})");
                             return None;
                         };
 
@@ -459,8 +411,6 @@ impl Renderer {
         tracing::debug!("Creating render pipeline for {key:?}");
 
         let device = &self.device;
-
-        let surface_format = self.surface_config.format;
         let pipeline_layout = self.pipeline_layouts.get(key.pipeline_layout)?;
 
         let vertex_buffer_layout = key
@@ -495,11 +445,8 @@ impl Renderer {
         });
 
         let vertex_shader = self.vertex_shaders.get(key.vertex_shader)?;
-
         let fragment_shader = self.fragment_shaders.get(key.fragment_shader)?;
-
         let vertex_shader_module = self.shaders.get(vertex_shader.shader_module)?;
-
         let fragment_shader_module = self.shaders.get(fragment_shader.shader_module)?;
 
         let blend = match key.blend_mode {
@@ -519,22 +466,11 @@ impl Renderer {
             }),
             BlendMode::Premultiplied => Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
         };
-        let targets = match key.render_target {
-            RenderTarget::Surface => &[Some(wgpu::ColorTargetState {
-                format: surface_format,
-                blend,
-                write_mask: wgpu::ColorWrites::ALL,
-            })],
-            RenderTarget::Custom(id) => {
-                let record = self.render_targets.get(id)?;
-
-                &[Some(wgpu::ColorTargetState {
-                    format: record.format.to_wgpu(),
-                    blend,
-                    write_mask: wgpu::ColorWrites::ALL,
-                })]
-            }
-        };
+        let targets = &[Some(wgpu::ColorTargetState {
+            format: key.render_target_format,
+            blend,
+            write_mask: wgpu::ColorWrites::ALL,
+        })];
 
         let mut buffers: Vec<wgpu::VertexBufferLayout<'_>> = Vec::new();
         if let (Some(vertex_buffer_layout), Some(vertex_attributes)) =

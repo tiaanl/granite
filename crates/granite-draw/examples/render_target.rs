@@ -4,8 +4,18 @@
 //! Pass 1: colored triangle → offscreen render target (RenderTarget::Custom)
 //! Pass 2: fullscreen blit of render target → surface (RenderTarget::Surface)
 use glam::Vec4;
-use granite::macros::vertex_buffer;
-use granite::prelude::*;
+use granite::{
+    app::SceneBuilder,
+    renderer::{Frame, Renderer},
+    scene::Scene,
+};
+use granite_draw::{
+    BlendMode, DrawListRenderer, MaterialId, MeshId, RenderTargetId,
+    draw_list::{DrawList, RenderTarget},
+    render_target::{RenderTargetFormat, RenderTargetSize},
+    sampler::{SamplerAddressing, SamplerFiltering},
+};
+use granite_macros::vertex_buffer;
 
 // Pass 1: draw a simple RGB triangle into the offscreen target.
 const SCENE_SHADER: &str = r"
@@ -62,6 +72,7 @@ struct Vertex {
 struct PostProcessBuilder;
 
 struct PostProcess {
+    draw_list_renderer: DrawListRenderer,
     // Pass 1
     render_target: RenderTargetId,
     scene_mesh: MeshId,
@@ -74,8 +85,9 @@ impl SceneBuilder for PostProcessBuilder {
     type Target = PostProcess;
 
     fn build(&self, renderer: &mut Renderer) -> Self::Target {
+        let mut draw_list_renderer = DrawListRenderer::new(renderer);
         // Offscreen target that automatically matches and tracks the surface resolution.
-        let render_target = renderer.create_render_target(
+        let render_target = draw_list_renderer.create_render_target(
             "offscreen",
             RenderTargetSize::SurfaceSize,
             RenderTargetFormat::Rgba,
@@ -96,19 +108,19 @@ impl SceneBuilder for PostProcessBuilder {
                 color: Vec4::new(0.0, 0.0, 1.0, 1.0),
             },
         ];
-        let scene_mesh = renderer.create_mesh("triangle", vertices, &[0, 1, 2]);
-        let scene_material = renderer
+        let scene_mesh = draw_list_renderer.create_mesh("triangle", vertices, &[0, 1, 2]);
+        let scene_material = draw_list_renderer
             .create_material_from_shader("scene", SCENE_SHADER)
             .blend_mode(BlendMode::Opaque)
             .build();
 
         // Pass 2 — fullscreen grayscale blit
-        let sampler = renderer.create_sampler(
+        let sampler = draw_list_renderer.create_sampler(
             "post",
             SamplerAddressing::ClampToEdge,
             SamplerFiltering::Linear,
         );
-        let post_material = renderer
+        let post_material = draw_list_renderer
             .create_material_from_shader("post", POST_SHADER)
             .render_target_texture(0, 0, render_target)
             .sampler(0, 1, sampler)
@@ -116,6 +128,7 @@ impl SceneBuilder for PostProcessBuilder {
             .build();
 
         PostProcess {
+            draw_list_renderer,
             render_target,
             scene_mesh,
             scene_material,
@@ -126,8 +139,10 @@ impl SceneBuilder for PostProcessBuilder {
 
 impl Scene for PostProcess {
     fn render(&mut self, frame: &mut Frame) {
+        let mut draw_list = DrawList::new();
+
         // Pass 1: draw the triangle into the offscreen render target.
-        frame.draw_mesh(
+        draw_list.draw_mesh(
             RenderTarget::Custom(self.render_target),
             self.scene_mesh,
             self.scene_material,
@@ -135,7 +150,9 @@ impl Scene for PostProcess {
 
         // Pass 2: blit the render target to the surface as grayscale.
         // 3 vertices generate the fullscreen triangle in the vertex shader.
-        frame.draw(RenderTarget::Surface, self.post_material, 3);
+        draw_list.draw(RenderTarget::Surface, self.post_material, 3);
+
+        self.draw_list_renderer.submit_draw_list(frame, draw_list);
     }
 }
 

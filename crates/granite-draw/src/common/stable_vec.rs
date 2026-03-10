@@ -14,37 +14,28 @@ impl<T> StableVec<T>
 where
     T: 'static,
 {
-    /// Returns `true` when no values are currently stored.
     #[inline]
     pub fn is_empty(&self) -> bool {
         self.data.is_empty()
     }
 
-    /// Returns the number of currently stored values.
     #[inline]
     pub fn len(&self) -> usize {
         self.data.len()
     }
 
-    /// Gets a value by [`Id`].
-    ///
-    /// Returns `None` when the ID is stale or belongs to a removed value.
     #[inline]
     pub fn get(&self, id: Id) -> Option<&T> {
         Self::verify_id(id);
         self.data.get(id.0)
     }
 
-    /// Gets a mutable value by [`Id`].
-    ///
-    /// Returns `None` when the ID is stale or belongs to a removed value.
     #[inline]
     pub fn get_mut(&mut self, id: Id) -> Option<&mut T> {
         Self::verify_id(id);
         self.data.get_mut(id.0)
     }
 
-    /// Inserts a value and returns its stable [`Id`].
     #[inline]
     pub fn push(&mut self, value: T) -> Id {
         Id(
@@ -54,9 +45,6 @@ where
         )
     }
 
-    /// Removes a value by [`Id`].
-    ///
-    /// Returns the removed value when the ID is still valid.
     #[inline]
     pub fn remove(&mut self, id: Id) -> Option<T> {
         Self::verify_id(id);
@@ -73,7 +61,6 @@ where
     #[cfg(not(debug_assertions))]
     fn verify_id(_id: Id) {}
 
-    /// Iterates over all stored values, yielding `(Id, &T)` pairs.
     #[inline]
     pub fn iter(&self) -> impl Iterator<Item = (Id, &T)> {
         self.data.iter().map(|(index, value)| {

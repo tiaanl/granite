@@ -1,6 +1,5 @@
+use crate::Id;
 use wgpu::util::DeviceExt;
-
-use crate::common::Id;
 
 /// Public alias for the vertex format type used by layout descriptions.
 pub type VertexFormat = wgpu::VertexFormat;
@@ -8,7 +7,9 @@ pub type VertexFormat = wgpu::VertexFormat;
 pub type VertexStepMode = wgpu::VertexStepMode;
 
 /// Describes how a vertex type maps to a GPU vertex buffer layout.
-pub trait AsVertexBufferLayout: Sized + encase::ShaderSize + encase::internal::WriteInto {
+pub trait AsVertexBufferLayout:
+    Sized + crate::encase::ShaderSize + crate::encase::internal::WriteInto
+{
     /// Byte stride of each element.
     const STRIDE: u64;
     /// Step mode used when advancing this buffer.
@@ -26,13 +27,15 @@ pub trait AsVertexBufferLayout: Sized + encase::ShaderSize + encase::internal::W
     }
 
     /// Encodes a full slice of values into GPU-ready vertex bytes.
-    fn encode_slice(values: &[Self]) -> encase::internal::Result<Vec<u8>> {
+    fn encode_slice(values: &[Self]) -> crate::encase::internal::Result<Vec<u8>> {
         encode_struct_buffer_bytes(values)
     }
 }
 
 /// Describes how an instance type maps to a GPU instance buffer layout.
-pub trait AsInstanceBufferLayout: Sized + encase::ShaderSize + encase::internal::WriteInto {
+pub trait AsInstanceBufferLayout:
+    Sized + crate::encase::ShaderSize + crate::encase::internal::WriteInto
+{
     /// Byte stride of each element.
     const STRIDE: u64;
     /// Step mode used when advancing this buffer.
@@ -50,7 +53,7 @@ pub trait AsInstanceBufferLayout: Sized + encase::ShaderSize + encase::internal:
     }
 
     /// Encodes a full slice of values into GPU-ready instance bytes.
-    fn encode_slice(values: &[Self]) -> encase::internal::Result<Vec<u8>> {
+    fn encode_slice(values: &[Self]) -> crate::encase::internal::Result<Vec<u8>> {
         encode_struct_buffer_bytes(values)
     }
 }
@@ -65,7 +68,7 @@ pub struct VertexAttribute {
 }
 
 #[derive(Clone, Hash, PartialEq, Eq)]
-/// Compact description of a buffer layout used by the renderer pipeline cache.
+/// Compact description of a buffer layout used by higher-level pipeline caches.
 pub struct VertexBufferLayout {
     /// Byte stride of each element.
     pub size: u64,
@@ -132,28 +135,6 @@ pub(super) fn vertex_attributes(
     attributes
 }
 
-pub(super) fn encode_struct_buffer_bytes<T>(values: &[T]) -> encase::internal::Result<Vec<u8>>
-where
-    T: encase::ShaderSize + encase::internal::WriteInto,
-{
-    let stride = usize::try_from(T::SHADER_SIZE.get())
-        .expect("vertex or instance element stride does not fit in usize");
-    let total_size = stride
-        .checked_mul(values.len())
-        .expect("vertex or instance buffer size overflow");
-    let mut bytes = Vec::with_capacity(total_size);
-
-    for (index, value) in values.iter().enumerate() {
-        let offset = index
-            .checked_mul(stride)
-            .expect("vertex or instance buffer offset overflow");
-        let mut writer = encase::internal::Writer::new(value, &mut bytes, offset)?;
-        value.write_into(&mut writer);
-    }
-
-    Ok(bytes)
-}
-
 fn encode_index_bytes(indices: &[u32]) -> Vec<u8> {
     let capacity = indices
         .len()
@@ -166,4 +147,26 @@ fn encode_index_bytes(indices: &[u32]) -> Vec<u8> {
     }
 
     bytes
+}
+
+fn encode_struct_buffer_bytes<T>(values: &[T]) -> crate::encase::internal::Result<Vec<u8>>
+where
+    T: crate::encase::ShaderSize + crate::encase::internal::WriteInto,
+{
+    let stride = usize::try_from(T::SHADER_SIZE.get())
+        .expect("vertex or instance element stride does not fit in usize");
+    let total_size = stride
+        .checked_mul(values.len())
+        .expect("vertex or instance buffer size overflow");
+    let mut bytes = Vec::with_capacity(total_size);
+
+    for (index, value) in values.iter().enumerate() {
+        let offset = index
+            .checked_mul(stride)
+            .expect("vertex or instance buffer offset overflow");
+        let mut writer = crate::encase::internal::Writer::new(value, &mut bytes, offset)?;
+        value.write_into(&mut writer);
+    }
+
+    Ok(bytes)
 }
