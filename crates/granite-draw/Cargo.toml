@@ -8,6 +8,4 @@ encase = "0.12"
 generational-arena = "0.2"
 granite = { path = "../granite" }
 granite-macros = { path = "../granite-macros" }
-glam = "0.30"
 tracing = "0.1"
-wgpu = "28.0"

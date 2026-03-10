@@ -636,11 +636,9 @@ version = "0.1.0"
 dependencies = [
  "encase",
  "generational-arena",
- "glam",
  "granite",
  "granite-macros",
  "tracing",
- "wgpu",
 ]
 
 [[package]]

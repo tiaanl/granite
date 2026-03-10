@@ -1,4 +1,4 @@
-use glam::UVec2;
+use granite::{glam::UVec2, wgpu};
 
 /// Pixel format for a render target.
 #[derive(Clone, Copy)]

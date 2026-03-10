@@ -1,6 +1,6 @@
-use glam::{Mat4, UVec2, Vec2};
 use granite::{
     app::SceneBuilder,
+    glam::{Mat4, UVec2, Vec2},
     renderer::{Frame, Renderer},
     scene::{Scene, SceneEvent},
 };

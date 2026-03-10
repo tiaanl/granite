@@ -1,4 +1,4 @@
-use granite::renderer::Frame;
+use granite::{renderer::Frame, wgpu};
 
 use crate::draw_list::{DrawList, RenderTarget};
 

@@ -6,10 +6,9 @@
 
 use std::collections::HashMap;
 
-use granite::renderer::Renderer;
+use granite::{renderer::Renderer, wgpu};
 
 pub use encase;
-pub use glam;
 
 use crate::{
     common::{Id, StableMap, StableSet, StableVec},

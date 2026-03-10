@@ -1,4 +1,7 @@
-use wgpu::util::DeviceExt;
+use granite::{
+    glam::UVec2,
+    wgpu::{self, util::DeviceExt},
+};
 
 use crate::{
     DrawListRenderer, MaterialId, MeshId, RenderTargetId, TextureId, UniformId,
@@ -146,8 +149,8 @@ impl UpdateUniform {
 
 pub(super) struct UpdateTextureRegion {
     pub texture: TextureId,
-    pub origin: glam::UVec2,
-    pub size: glam::UVec2,
+    pub origin: UVec2,
+    pub size: UVec2,
     pub data: Vec<u8>,
 }
 
@@ -164,7 +167,7 @@ impl UpdateTextureRegion {
 
 pub(super) struct ResizeRenderTarget {
     pub render_target: RenderTargetId,
-    pub size: glam::UVec2,
+    pub size: UVec2,
 }
 
 impl ResizeRenderTarget {

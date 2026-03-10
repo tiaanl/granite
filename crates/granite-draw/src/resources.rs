@@ -1,6 +1,8 @@
-use glam::UVec2;
-use granite::renderer::Frame;
-use wgpu::util::DeviceExt;
+use granite::{
+    glam::UVec2,
+    renderer::Frame,
+    wgpu::{self, util::DeviceExt},
+};
 
 use crate::{
     AsUniformBuffer, BindGroupBindingResourceKey, BlendMode, DrawListRenderer, FragmentShaderId,

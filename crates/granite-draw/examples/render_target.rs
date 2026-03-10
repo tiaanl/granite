@@ -3,9 +3,9 @@
 //!
 //! Pass 1: colored triangle → offscreen render target (RenderTarget::Custom)
 //! Pass 2: fullscreen blit of render target → surface (RenderTarget::Surface)
-use glam::Vec4;
 use granite::{
     app::SceneBuilder,
+    glam::Vec4,
     renderer::{Frame, Renderer},
     scene::Scene,
 };

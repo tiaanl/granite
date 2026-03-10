@@ -5,6 +5,7 @@ pub mod scene;
 
 // Re-export
 pub use glam;
+pub use wgpu;
 
 /// Handles the main engine loop. Calls into the [scene::Scene] at significant points during the loop.
 #[inline]
