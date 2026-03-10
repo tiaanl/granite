@@ -1,7 +1,7 @@
 //! Low-level window/surface renderer built directly on top of `wgpu`.
 //!
 //! [`Renderer`] owns the surface and produces a [`Frame`] containing the active
-//! [`wgpu::CommandEncoder`] and swapchain [`wgpu::TextureView`].
+//! swapchain [`wgpu::TextureView`].
 //!
 //! For the higher-level draw-list/material layer, use the companion `granite-draw` crate.
 
@@ -108,21 +108,14 @@ impl Renderer {
         self.surface.configure(&self.device, &self.surface_config);
     }
 
-    /// Acquires the next surface texture and starts encoding commands for a new frame.
+    /// Acquires the next surface texture for a new frame.
     pub fn begin_frame(&mut self) -> Result<Frame, SubmitFrameError> {
         let surface_texture = self.get_current_surface_texture()?;
         let view = surface_texture
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
 
-        let encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("frame_encoder"),
-            });
-
         Ok(Frame::new(
-            encoder,
             view,
             surface_texture,
             self.surface_size(),
@@ -130,12 +123,9 @@ impl Renderer {
         ))
     }
 
-    /// Finishes the encoder, submits the command buffer, and presents the frame.
-    pub fn submit_frame(&self, frame: Frame) -> Result<(), SubmitFrameError> {
-        let (command_buffer, surface_texture) = frame.finish();
-        self.queue.submit(std::iter::once(command_buffer));
-        surface_texture.present();
-        Ok(())
+    /// Presents the frame after any externally submitted command buffers have completed encoding.
+    pub fn submit_frame(&self, frame: Frame) {
+        frame.present();
     }
 
     fn get_current_surface_texture(&mut self) -> Result<wgpu::SurfaceTexture, SubmitFrameError> {

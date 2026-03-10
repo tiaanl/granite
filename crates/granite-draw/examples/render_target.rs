@@ -138,7 +138,7 @@ impl SceneBuilder for PostProcessBuilder {
 }
 
 impl Scene for PostProcess {
-    fn render(&mut self, frame: &mut Frame) {
+    fn render(&mut self, renderer: &Renderer, frame: &Frame) {
         let mut draw_list = DrawList::new();
 
         // Pass 1: draw the triangle into the offscreen render target.
@@ -152,7 +152,8 @@ impl Scene for PostProcess {
         // 3 vertices generate the fullscreen triangle in the vertex shader.
         draw_list.draw(RenderTarget::Surface, self.post_material, 3);
 
-        self.draw_list_renderer.submit_draw_list(frame, draw_list);
+        self.draw_list_renderer
+            .submit_draw_list(renderer, frame, draw_list);
     }
 }
 

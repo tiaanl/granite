@@ -142,7 +142,7 @@ impl Scene for Spline {
         }
     }
 
-    fn render(&mut self, frame: &mut Frame) {
+    fn render(&mut self, renderer: &Renderer, frame: &Frame) {
         let mut draw_list = DrawList::new();
 
         if let Some(projection) = self.pending_projection.take() {
@@ -151,7 +151,8 @@ impl Scene for Spline {
 
         let instances = [Instance { offset: Vec2::ZERO }];
         draw_list.draw_mesh_instanced(RenderTarget::Surface, self.mesh, self.material, &instances);
-        self.draw_list_renderer.submit_draw_list(frame, draw_list);
+        self.draw_list_renderer
+            .submit_draw_list(renderer, frame, draw_list);
     }
 }
 

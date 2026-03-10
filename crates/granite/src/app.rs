@@ -137,13 +137,9 @@ where
                 input.reset_current_frame();
 
                 {
-                    let mut frame = renderer.begin_frame().expect("Could not begin frame");
-
-                    scene.render(&mut frame);
-
-                    renderer
-                        .submit_frame(frame)
-                        .expect("Could not submit frame");
+                    let frame = renderer.begin_frame().expect("Could not begin frame");
+                    scene.render(renderer, &frame);
+                    renderer.submit_frame(frame);
                 }
 
                 window.request_redraw();

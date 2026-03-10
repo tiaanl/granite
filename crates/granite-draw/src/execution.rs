@@ -1,4 +1,4 @@
-use granite::{renderer::Frame, wgpu};
+use granite::{renderer::{Frame, Renderer}, wgpu};
 
 use crate::draw_list::{DrawList, RenderTarget};
 
@@ -13,9 +13,14 @@ impl DrawListRenderer {
     }
 
     /// Executes all commands in a draw list into the provided frame.
-    pub fn submit_draw_list(&mut self, frame: &mut Frame, draw_list: DrawList) {
+    pub fn submit_draw_list(&mut self, renderer: &Renderer, frame: &Frame, draw_list: DrawList) {
         let DrawList { commands } = draw_list;
         let mut frame_instance_buffers: Vec<wgpu::Buffer> = Vec::new();
+        let mut encoder = renderer
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("draw_list_encoder"),
+            });
 
         for command in commands.iter() {
             match command {
@@ -25,7 +30,7 @@ impl DrawListRenderer {
                 commands::FrameCommand::Draw(command) => {
                     self.ensure_render_target_ready(frame, command.render_target);
                     if let Some(mut pass) = self.create_render_pass_for_render_target(
-                        &mut frame.encoder,
+                        &mut encoder,
                         &frame.view,
                         command.render_target,
                     ) {
@@ -36,7 +41,7 @@ impl DrawListRenderer {
                     self.ensure_render_target_ready(frame, command.render_target);
 
                     if let Some(mut pass) = self.create_render_pass_for_render_target(
-                        &mut frame.encoder,
+                        &mut encoder,
                         &frame.view,
                         command.render_target,
                     ) {
@@ -46,7 +51,7 @@ impl DrawListRenderer {
                 commands::FrameCommand::DrawMeshInstanced(command) => {
                     self.ensure_render_target_ready(frame, command.render_target);
                     if let Some(mut pass) = self.create_render_pass_for_render_target(
-                        &mut frame.encoder,
+                        &mut encoder,
                         &frame.view,
                         command.render_target,
                     ) {
@@ -60,6 +65,8 @@ impl DrawListRenderer {
                 }
             }
         }
+
+        renderer.queue.submit(std::iter::once(encoder.finish()));
     }
 
     fn create_render_pass_for_render_target<'encoder>(

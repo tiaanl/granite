@@ -1,4 +1,7 @@
-use crate::{input::InputState, renderer::Frame};
+use crate::{
+    input::InputState,
+    renderer::{Frame, Renderer},
+};
 
 pub enum SceneEvent {
     WindowResized { width: u32, height: u32 },
@@ -14,5 +17,5 @@ pub trait Scene {
         let _ = delta_time;
     }
 
-    fn render(&mut self, frame: &mut Frame);
+    fn render(&mut self, renderer: &Renderer, frame: &Frame);
 }
