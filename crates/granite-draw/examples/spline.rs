@@ -82,7 +82,7 @@ impl ProjectionUniform {
 impl SceneBuilder for SplineBuilder {
     type Target = Spline;
 
-    fn build(&self, renderer: &mut Renderer) -> Self::Target {
+    fn build(self, renderer: &mut Renderer) -> Self::Target {
         let mut draw_list_renderer =
             DrawListRenderer::new(renderer.device.clone(), renderer.queue.clone());
         let points = vec![
@@ -163,7 +163,7 @@ impl Scene for Spline {
 }
 
 fn main() {
-    granite::run(SplineBuilder).unwrap();
+    granite::run(SplineBuilder);
 }
 
 fn sample_catmull_rom_spline(points: &[Vec2], quality: f32) -> Vec<Vec2> {

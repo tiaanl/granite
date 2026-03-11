@@ -13,17 +13,17 @@ use crate::{renderer::Renderer, scene::Scene};
 pub trait SceneBuilder {
     type Target: Scene;
 
-    fn build(&self, renderer: &mut Renderer) -> Self::Target;
+    fn build(self, renderer: &mut Renderer) -> Self::Target;
 }
 
 impl<T, F> SceneBuilder for F
 where
     T: Scene,
-    F: Fn(&mut Renderer) -> T,
+    F: for<'a> FnOnce(&'a mut Renderer) -> T,
 {
     type Target = T;
 
-    fn build(&self, renderer: &mut Renderer) -> Self::Target {
+    fn build(self, renderer: &mut Renderer) -> Self::Target {
         self(renderer)
     }
 }
@@ -33,35 +33,35 @@ where
 // Allow the clippy large_enum_variant, becuase we only have one instance of [App] and we use the
 // enum as a "initialized" flag only.
 #[allow(clippy::large_enum_variant)]
-pub enum App<S, Builder>
+pub enum App<Builder>
 where
-    S: Scene,
-    Builder: SceneBuilder<Target = S>,
+    Builder: SceneBuilder,
 {
     /// The application is in a suspended state.
-    Suspended { builder: Builder },
-    /// The application was resumed and is not actively running.
+    Suspended { builder: Option<Builder> },
+    /// The application was resumed and is now actively running.
     Resumed {
-        /// A handle to the main window runing our renderer.
+        /// A handle to the main window running our renderer.
         window: Arc<Window>,
         /// The renderer.
         renderer: Renderer,
-        /// The use [Scene] we are interacting with.
+        /// The [Scene] we are interacting with.
         scene: Builder::Target,
         /// The last [std::time::Instant] that a frame was rendered to the display.
         last_frame_time: std::time::Instant,
     },
 }
 
-impl<S, Builder> ApplicationHandler for App<S, Builder>
+impl<Builder> ApplicationHandler for App<Builder>
 where
-    S: Scene,
-    Builder: SceneBuilder<Target = S>,
+    Builder: SceneBuilder,
 {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         let App::Suspended { builder } = self else {
             panic!("App already resumed.");
         };
+
+        let builder = builder.take().expect("App already resumed.");
 
         let window = Arc::new(
             event_loop
@@ -80,7 +80,7 @@ where
             renderer,
             scene,
             last_frame_time: std::time::Instant::now(),
-        }
+        };
     }
 
     fn window_event(

@@ -84,7 +84,7 @@ struct PostProcess {
 impl SceneBuilder for PostProcessBuilder {
     type Target = PostProcess;
 
-    fn build(&self, renderer: &mut Renderer) -> Self::Target {
+    fn build(self, renderer: &mut Renderer) -> Self::Target {
         let mut draw_list_renderer =
             DrawListRenderer::new(renderer.device.clone(), renderer.queue.clone());
         // Offscreen target that automatically matches and tracks the surface resolution.
@@ -165,5 +165,5 @@ impl Scene for PostProcess {
 }
 
 fn main() {
-    granite::run(PostProcessBuilder).unwrap();
+    granite::run(PostProcessBuilder);
 }

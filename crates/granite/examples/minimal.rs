@@ -45,7 +45,7 @@ struct Minimal {
 impl SceneBuilder for MinimalBuilder {
     type Target = Minimal;
 
-    fn build(&self, renderer: &mut Renderer) -> Self::Target {
+    fn build(self, renderer: &mut Renderer) -> Self::Target {
         let shader = renderer
             .device
             .create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -123,5 +123,5 @@ impl Scene for Minimal {
 }
 
 fn main() {
-    granite::run(MinimalBuilder).unwrap();
+    granite::run(MinimalBuilder);
 }
