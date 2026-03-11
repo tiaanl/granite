@@ -4,8 +4,8 @@ pub mod renderer;
 pub mod scene;
 
 // Re-export
-pub use glam;
 pub use wgpu;
+pub use winit::event::WindowEvent;
 
 /// Handles the main engine loop. Calls into the [scene::Scene] at significant points during the loop.
 #[inline]

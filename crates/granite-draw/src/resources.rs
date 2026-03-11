@@ -1,13 +1,10 @@
-use granite::{
-    glam::UVec2,
-    renderer::Frame,
-    wgpu::{self, util::DeviceExt},
-};
+use glam::UVec2;
+use wgpu::{self, util::DeviceExt};
 
 use crate::{
     AsUniformBuffer, BindGroupBindingResourceKey, BlendMode, DrawListRenderer, FragmentShaderId,
-    MaterialBuilder, MaterialId, MaterialRecord, MeshId, RenderTargetId, SamplerId, ShaderModuleId,
-    TextureId, UniformId, UniformRecord, VertexShaderId,
+    FrameContext, MaterialBuilder, MaterialId, MaterialRecord, MeshId, RenderTargetId, SamplerId,
+    ShaderModuleId, TextureId, UniformId, UniformRecord, VertexShaderId,
     bindings::DrawBinding,
     common::Id,
     draw_list::RenderTarget,
@@ -132,7 +129,7 @@ impl DrawListRenderer {
     /// - `RenderTarget::Surface`: no-op.
     pub(super) fn ensure_render_target_ready(
         &mut self,
-        frame: &Frame,
+        frame_context: &FrameContext<'_>,
         render_target: RenderTarget,
     ) {
         let RenderTarget::Custom(id) = render_target else {
@@ -144,7 +141,7 @@ impl DrawListRenderer {
 
         let needs_allocation = match record.size_mode {
             RenderTargetSize::SurfaceSize => {
-                record.view.is_none() || record.size != frame.surface_size
+                record.view.is_none() || record.size != frame_context.size
             }
             RenderTargetSize::Custom(_) => record.view.is_none(),
         };
@@ -154,7 +151,7 @@ impl DrawListRenderer {
         }
 
         let size = match record.size_mode {
-            RenderTargetSize::SurfaceSize => frame.surface_size,
+            RenderTargetSize::SurfaceSize => frame_context.size,
             RenderTargetSize::Custom(s) => s,
         };
 
@@ -492,7 +489,7 @@ impl DrawListRenderer {
             address_mode_w: address_mode,
             mag_filter: filter_mode,
             min_filter: filter_mode,
-            mipmap_filter: wgpu::MipmapFilterMode::Nearest,
+            mipmap_filter: wgpu::FilterMode::Nearest,
             ..Default::default()
         });
 

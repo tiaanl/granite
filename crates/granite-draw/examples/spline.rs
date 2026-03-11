@@ -1,11 +1,12 @@
+use glam::{Mat4, UVec2, Vec2};
 use granite::{
+    WindowEvent,
     app::SceneBuilder,
-    glam::{Mat4, UVec2, Vec2},
     renderer::{Frame, Renderer},
-    scene::{Scene, SceneEvent},
+    scene::Scene,
 };
 use granite_draw::{
-    DrawListRenderer, MaterialId, MeshId, UniformId,
+    DrawListRenderer, FrameContext, MaterialId, MeshId, UniformId,
     draw_list::{DrawList, RenderTarget},
 };
 use granite_macros::{instance_buffer, uniform_buffer, vertex_buffer};
@@ -82,7 +83,8 @@ impl SceneBuilder for SplineBuilder {
     type Target = Spline;
 
     fn build(&self, renderer: &mut Renderer) -> Self::Target {
-        let mut draw_list_renderer = DrawListRenderer::new(renderer);
+        let mut draw_list_renderer =
+            DrawListRenderer::new(renderer.device.clone(), renderer.queue.clone());
         let points = vec![
             Vec2::new(100.0, 100.0),
             Vec2::new(1000.0, 400.0),
@@ -131,18 +133,16 @@ impl SceneBuilder for SplineBuilder {
 }
 
 impl Scene for Spline {
-    fn event(&mut self, event: SceneEvent) {
-        match event {
-            SceneEvent::WindowResized { width, height } => {
-                self.pending_projection = Some(ProjectionUniform::from_view(
-                    self.world_size,
-                    UVec2::new(width, height),
-                ));
-            }
+    fn window_event(&mut self, event: &WindowEvent) {
+        if let WindowEvent::Resized(size) = event {
+            self.pending_projection = Some(ProjectionUniform::from_view(
+                self.world_size,
+                UVec2::new(size.width, size.height),
+            ));
         }
     }
 
-    fn render(&mut self, renderer: &Renderer, frame: &Frame) {
+    fn frame(&mut self, _renderer: &Renderer, frame: &Frame, _delta_time: f32) {
         let mut draw_list = DrawList::new();
 
         if let Some(projection) = self.pending_projection.take() {
@@ -151,8 +151,14 @@ impl Scene for Spline {
 
         let instances = [Instance { offset: Vec2::ZERO }];
         draw_list.draw_mesh_instanced(RenderTarget::Surface, self.mesh, self.material, &instances);
-        self.draw_list_renderer
-            .submit_draw_list(renderer, frame, draw_list);
+        self.draw_list_renderer.submit_draw_list(
+            FrameContext::new(
+                &frame.view,
+                UVec2::from(frame.surface_size),
+                frame.surface_format,
+            ),
+            draw_list,
+        );
     }
 }
 

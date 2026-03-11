@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use glam::UVec2;
 use winit::{
     application::ApplicationHandler,
     dpi::PhysicalSize,
@@ -9,11 +8,7 @@ use winit::{
     window::{Window, WindowAttributes, WindowId},
 };
 
-use crate::{
-    input::InputState,
-    renderer::Renderer,
-    scene::{Scene, SceneEvent},
-};
+use crate::{renderer::Renderer, scene::Scene};
 
 pub trait SceneBuilder {
     type Target: Scene;
@@ -51,8 +46,6 @@ where
         window: Arc<Window>,
         /// The renderer.
         renderer: Renderer,
-        /// Keep track of the input state.
-        input: InputState,
         /// The use [Scene] we are interacting with.
         scene: Builder::Target,
         /// The last [std::time::Instant] that a frame was rendered to the display.
@@ -78,14 +71,13 @@ where
 
         let PhysicalSize { width, height } = window.inner_size();
 
-        let mut renderer = Renderer::new(Arc::clone(&window), UVec2::new(width, height))
-            .expect("Could not create renderer");
+        let mut renderer =
+            Renderer::new(Arc::clone(&window), width, height).expect("Could not create renderer");
         let scene = builder.build(&mut renderer);
 
         *self = Self::Resumed {
             window,
             renderer,
-            input: InputState::default(),
             scene,
             last_frame_time: std::time::Instant::now(),
         }
@@ -100,7 +92,6 @@ where
         let Self::Resumed {
             window,
             renderer,
-            input,
             scene,
             last_frame_time,
             ..
@@ -115,15 +106,15 @@ where
             return;
         }
 
+        scene.window_event(&event);
+
         match event {
             WindowEvent::CloseRequested => {
                 event_loop.exit();
             }
 
             WindowEvent::Resized(PhysicalSize { width, height }) => {
-                renderer.resize(UVec2::new(width, height));
-
-                scene.event(SceneEvent::WindowResized { width, height });
+                renderer.resize(width, height);
             }
 
             WindowEvent::RedrawRequested => {
@@ -132,23 +123,18 @@ where
                 let delta_time = (now - *last_frame_time).as_secs_f32();
                 *last_frame_time = now;
 
-                scene.update(input, delta_time);
-
-                input.reset_current_frame();
-
                 {
                     let frame = renderer.begin_frame().expect("Could not begin frame");
-                    scene.render(renderer, &frame);
+                    scene.frame(renderer, &frame, delta_time);
                     renderer.submit_frame(frame);
                 }
 
                 window.request_redraw();
             }
 
-            event => {
-                // Consume the event.
-                input.handle_window_event(event);
-            }
+            WindowEvent::Occluded(_) => {}
+
+            _ => {}
         }
     }
 }

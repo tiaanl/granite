@@ -1,4 +1,4 @@
-use granite::glam::UVec2;
+use glam::UVec2;
 
 use crate::{
     AsUniformBuffer, MaterialId, MeshId, RenderTargetId, TextureId, UniformId,

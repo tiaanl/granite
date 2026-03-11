@@ -3,14 +3,14 @@
 //!
 //! Pass 1: colored triangle → offscreen render target (RenderTarget::Custom)
 //! Pass 2: fullscreen blit of render target → surface (RenderTarget::Surface)
+use glam::{UVec2, Vec4};
 use granite::{
     app::SceneBuilder,
-    glam::Vec4,
     renderer::{Frame, Renderer},
     scene::Scene,
 };
 use granite_draw::{
-    BlendMode, DrawListRenderer, MaterialId, MeshId, RenderTargetId,
+    BlendMode, DrawListRenderer, FrameContext, MaterialId, MeshId, RenderTargetId,
     draw_list::{DrawList, RenderTarget},
     render_target::{RenderTargetFormat, RenderTargetSize},
     sampler::{SamplerAddressing, SamplerFiltering},
@@ -85,7 +85,8 @@ impl SceneBuilder for PostProcessBuilder {
     type Target = PostProcess;
 
     fn build(&self, renderer: &mut Renderer) -> Self::Target {
-        let mut draw_list_renderer = DrawListRenderer::new(renderer);
+        let mut draw_list_renderer =
+            DrawListRenderer::new(renderer.device.clone(), renderer.queue.clone());
         // Offscreen target that automatically matches and tracks the surface resolution.
         let render_target = draw_list_renderer.create_render_target(
             "offscreen",
@@ -138,7 +139,7 @@ impl SceneBuilder for PostProcessBuilder {
 }
 
 impl Scene for PostProcess {
-    fn render(&mut self, renderer: &Renderer, frame: &Frame) {
+    fn frame(&mut self, _renderer: &Renderer, frame: &Frame, _delta_time: f32) {
         let mut draw_list = DrawList::new();
 
         // Pass 1: draw the triangle into the offscreen render target.
@@ -152,8 +153,14 @@ impl Scene for PostProcess {
         // 3 vertices generate the fullscreen triangle in the vertex shader.
         draw_list.draw(RenderTarget::Surface, self.post_material, 3);
 
-        self.draw_list_renderer
-            .submit_draw_list(renderer, frame, draw_list);
+        self.draw_list_renderer.submit_draw_list(
+            FrameContext::new(
+                &frame.view,
+                UVec2::from(frame.surface_size),
+                frame.surface_format,
+            ),
+            draw_list,
+        );
     }
 }
 

@@ -6,6 +6,10 @@ edition = "2024"
 [dependencies]
 encase = "0.12"
 generational-arena = "0.2"
+glam = { version = "0.30", features = ["encase"] }
+tracing.workspace = true
+wgpu.workspace = true
+
+[dev-dependencies]
 granite = { path = "../granite" }
 granite-macros = { path = "../granite-macros" }
-tracing = "0.1"

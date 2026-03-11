@@ -1,12 +1,11 @@
-//! Higher-level draw-list renderer that layers on top of [`granite::renderer::Renderer`].
+//! Higher-level draw-list renderer built on top of owned `wgpu` device and queue handles.
 //!
-//! `granite` owns the window surface and frame lifecycle. This crate provides stable resource
-//! handles, materials, meshes, render targets, and draw-list submission into
-//! [`granite::renderer::Frame`].
+//! This crate provides stable resource handles, materials, meshes, render targets, and draw-list
+//! submission into a user-provided [`FrameContext`].
 
 use std::collections::HashMap;
 
-use granite::{renderer::Renderer, wgpu};
+use glam::UVec2;
 
 pub use encase;
 
@@ -228,12 +227,27 @@ pub struct DrawListRenderer {
     render_pipeline_cache: HashMap<RenderPipelineKey, wgpu::RenderPipeline>,
 }
 
+/// Borrowed surface submission data for executing a draw list.
+#[derive(Clone, Copy)]
+pub struct FrameContext<'a> {
+    pub view: &'a wgpu::TextureView,
+    pub size: UVec2,
+    pub format: wgpu::TextureFormat,
+}
+
+impl<'a> FrameContext<'a> {
+    #[inline]
+    pub fn new(view: &'a wgpu::TextureView, size: UVec2, format: wgpu::TextureFormat) -> Self {
+        Self { view, size, format }
+    }
+}
+
 impl DrawListRenderer {
-    /// Creates a higher-level draw-list renderer on top of the provided [`Renderer`].
-    pub fn new(renderer: &Renderer) -> Self {
+    /// Creates a higher-level draw-list renderer from owned `wgpu` handles.
+    pub fn new(device: wgpu::Device, queue: wgpu::Queue) -> Self {
         Self {
-            device: renderer.device.clone(),
-            queue: renderer.queue.clone(),
+            device,
+            queue,
             render_targets: StableVec::default(),
             vertex_buffer_layouts: StableSet::default(),
             instance_buffer_layouts: StableSet::default(),

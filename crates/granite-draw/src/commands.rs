@@ -1,7 +1,5 @@
-use granite::{
-    glam::UVec2,
-    wgpu::{self, util::DeviceExt},
-};
+use glam::UVec2;
+use wgpu::{self, util::DeviceExt};
 
 use crate::{
     DrawListRenderer, MaterialId, MeshId, RenderTargetId, TextureId, UniformId,

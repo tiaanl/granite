@@ -1,5 +1,4 @@
 use crate::Id;
-use granite::wgpu;
 use wgpu::util::DeviceExt;
 
 /// Public alias for the vertex format type used by layout descriptions.

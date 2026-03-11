@@ -1,3 +1,7 @@
 [workspace]
 resolver = "2"
 members = ["crates/granite", "crates/granite-draw", "crates/granite-macros"]
+
+[workspace.dependencies]
+tracing = "0.1"
+wgpu = "27.0"

@@ -1,4 +1,4 @@
-use granite::{glam::UVec2, wgpu};
+use glam::UVec2;
 
 /// Pixel format for a texture resource.
 pub enum TextureFormat {

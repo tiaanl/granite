@@ -1,5 +1,3 @@
-use granite::wgpu;
-
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 /// Simplified sampler addressing mode.
 pub enum SamplerAddressing {

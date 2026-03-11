@@ -58,7 +58,7 @@ impl SceneBuilder for MinimalBuilder {
             .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("minimal_triangle_layout"),
                 bind_group_layouts: &[],
-                immediate_size: 0,
+                push_constant_ranges: &[],
             });
 
         let pipeline = renderer
@@ -85,7 +85,7 @@ impl SceneBuilder for MinimalBuilder {
                         write_mask: wgpu::ColorWrites::ALL,
                     })],
                 }),
-                multiview_mask: None,
+                multiview: None,
                 cache: None,
             });
 
@@ -94,7 +94,7 @@ impl SceneBuilder for MinimalBuilder {
 }
 
 impl Scene for Minimal {
-    fn render(&mut self, renderer: &Renderer, frame: &Frame) {
+    fn frame(&mut self, renderer: &Renderer, frame: &Frame, _delta_time: f32) {
         let mut encoder = renderer
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {

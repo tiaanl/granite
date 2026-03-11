@@ -1,21 +1,12 @@
 use crate::{
-    input::InputState,
+    WindowEvent,
     renderer::{Frame, Renderer},
 };
 
-pub enum SceneEvent {
-    WindowResized { width: u32, height: u32 },
-}
-
 pub trait Scene {
-    fn event(&mut self, event: SceneEvent) {
+    fn window_event(&mut self, event: &WindowEvent) {
         let _ = event;
     }
 
-    fn update(&mut self, input: &InputState, delta_time: f32) {
-        let _ = input;
-        let _ = delta_time;
-    }
-
-    fn render(&mut self, renderer: &Renderer, frame: &Frame);
+    fn frame(&mut self, renderer: &Renderer, frame: &Frame, delta_time: f32);
 }

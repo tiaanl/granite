@@ -1,4 +1,4 @@
-use granite::{renderer::{Frame, Renderer}, wgpu};
+use crate::FrameContext;
 
 use crate::draw_list::{DrawList, RenderTarget};
 
@@ -13,10 +13,10 @@ impl DrawListRenderer {
     }
 
     /// Executes all commands in a draw list into the provided frame.
-    pub fn submit_draw_list(&mut self, renderer: &Renderer, frame: &Frame, draw_list: DrawList) {
+    pub fn submit_draw_list(&mut self, frame_context: FrameContext<'_>, draw_list: DrawList) {
         let DrawList { commands } = draw_list;
         let mut frame_instance_buffers: Vec<wgpu::Buffer> = Vec::new();
-        let mut encoder = renderer
+        let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("draw_list_encoder"),
@@ -28,36 +28,36 @@ impl DrawListRenderer {
                 commands::FrameCommand::UpdateTextureRegion(command) => command.execute(self),
                 commands::FrameCommand::ResizeRenderTarget(command) => command.execute(self),
                 commands::FrameCommand::Draw(command) => {
-                    self.ensure_render_target_ready(frame, command.render_target);
+                    self.ensure_render_target_ready(&frame_context, command.render_target);
                     if let Some(mut pass) = self.create_render_pass_for_render_target(
                         &mut encoder,
-                        &frame.view,
+                        frame_context.view,
                         command.render_target,
                     ) {
-                        command.execute(self, frame.surface_format, &mut pass);
+                        command.execute(self, frame_context.format, &mut pass);
                     }
                 }
                 commands::FrameCommand::DrawMesh(command) => {
-                    self.ensure_render_target_ready(frame, command.render_target);
+                    self.ensure_render_target_ready(&frame_context, command.render_target);
 
                     if let Some(mut pass) = self.create_render_pass_for_render_target(
                         &mut encoder,
-                        &frame.view,
+                        frame_context.view,
                         command.render_target,
                     ) {
-                        command.execute(self, frame.surface_format, &mut pass);
+                        command.execute(self, frame_context.format, &mut pass);
                     }
                 }
                 commands::FrameCommand::DrawMeshInstanced(command) => {
-                    self.ensure_render_target_ready(frame, command.render_target);
+                    self.ensure_render_target_ready(&frame_context, command.render_target);
                     if let Some(mut pass) = self.create_render_pass_for_render_target(
                         &mut encoder,
-                        &frame.view,
+                        frame_context.view,
                         command.render_target,
                     ) {
                         command.execute(
                             self,
-                            frame.surface_format,
+                            frame_context.format,
                             &mut pass,
                             &mut frame_instance_buffers,
                         );
@@ -66,7 +66,7 @@ impl DrawListRenderer {
             }
         }
 
-        renderer.queue.submit(std::iter::once(encoder.finish()));
+        self.queue.submit(std::iter::once(encoder.finish()));
     }
 
     fn create_render_pass_for_render_target<'encoder>(
@@ -397,7 +397,7 @@ impl DrawListRenderer {
             .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: None,
                 bind_group_layouts: bind_group_layouts.as_slice(),
-                immediate_size: 0,
+                push_constant_ranges: &[],
             });
 
         let pipeline_layout_id = self.pipeline_layouts.insert_keyed(key, pipeline_layout);
@@ -518,7 +518,7 @@ impl DrawListRenderer {
                     compilation_options: wgpu::PipelineCompilationOptions::default(),
                     targets,
                 }),
-                multiview_mask: None,
+                multiview: None,
                 cache: None,
             }),
         )

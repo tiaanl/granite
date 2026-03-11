@@ -7,7 +7,6 @@
 
 use std::sync::Arc;
 
-use glam::UVec2;
 use thiserror::Error;
 use winit::window::Window;
 
@@ -55,7 +54,7 @@ pub struct Renderer {
 
 impl Renderer {
     /// Creates a new renderer for a window and initial surface size.
-    pub fn new(window: Arc<Window>, size: UVec2) -> Result<Self, RendererCreateError> {
+    pub fn new(window: Arc<Window>, width: u32, height: u32) -> Result<Self, RendererCreateError> {
         let instance = wgpu::Instance::default();
 
         let surface = instance
@@ -68,9 +67,8 @@ impl Renderer {
         }))
         .map_err(|error| RendererCreateError::RequestAdapter(error.to_string()))?;
 
-        let Some(surface_config) = surface
-            .get_default_config(&adapter, size.x.max(1), size.y.max(1))
-            .or(surface.get_configuration())
+        let Some(surface_config) =
+            surface.get_default_config(&adapter, width.max(1), height.max(1))
         else {
             return Err(RendererCreateError::DetermineConfigurtation);
         };
@@ -91,8 +89,8 @@ impl Renderer {
     }
 
     /// Get the current surface size.
-    pub fn surface_size(&self) -> UVec2 {
-        UVec2::new(self.surface_config.width, self.surface_config.height)
+    pub fn surface_size(&self) -> (u32, u32) {
+        (self.surface_config.width, self.surface_config.height)
     }
 
     /// Get the format of the underlying texture.
@@ -101,9 +99,9 @@ impl Renderer {
     }
 
     /// Resizes and reconfigures the surface.
-    pub fn resize(&mut self, size: UVec2) {
-        self.surface_config.width = size.x.max(1);
-        self.surface_config.height = size.y.max(1);
+    pub fn resize(&mut self, width: u32, height: u32) {
+        self.surface_config.width = width.max(1);
+        self.surface_config.height = height.max(1);
 
         self.surface.configure(&self.device, &self.surface_config);
     }
