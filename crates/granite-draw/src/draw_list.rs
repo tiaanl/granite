@@ -1,13 +1,14 @@
 use glam::UVec2;
 
 use crate::{
+    AsStorageBufferElement, AsUniformBuffer, DepthBufferId, MaterialId, MeshId, RenderTargetId,
+    StorageBufferId, TextureId, UniformId,
     commands::{
-        Draw, DrawMesh, DrawMeshInstanced, FrameCommand, ResizeRenderTarget, UpdateStorageBuffer,
-        UpdateTextureRegion, UpdateUniform,
+        ClearDepthBuffer, Draw, DrawMesh, DrawMeshInstanced, FrameCommand, ResizeDepthBuffer,
+        ResizeRenderTarget, UpdateStorageBuffer, UpdateTextureRegion, UpdateUniform,
     },
+    encode_storage_buffer_elements,
     mesh::AsInstanceBufferLayout,
-    AsStorageBufferElement, AsUniformBuffer, MaterialId, MeshId, RenderTargetId, StorageBufferId,
-    TextureId, UniformId, encode_storage_buffer_elements,
 };
 
 /// Specify the render target for a draw command.
@@ -116,6 +117,28 @@ impl DrawList {
             .push(FrameCommand::ResizeRenderTarget(ResizeRenderTarget {
                 render_target,
                 size,
+            }));
+    }
+
+    /// Queues a resize of a depth buffer. Executes before any draw commands
+    /// in the same draw list, so subsequent draws see the new size immediately.
+    pub fn resize_depth_buffer(&mut self, depth_buffer: DepthBufferId, size: UVec2) {
+        self.commands
+            .push(FrameCommand::ResizeDepthBuffer(ResizeDepthBuffer {
+                depth_buffer,
+                size,
+            }));
+    }
+
+    /// Queues a depth-only clear for a depth buffer.
+    ///
+    /// Depth buffers must be cleared after allocation or resize before they can be loaded by a
+    /// draw command.
+    pub fn clear_depth_buffer(&mut self, depth_buffer: DepthBufferId, value: f32) {
+        self.commands
+            .push(FrameCommand::ClearDepthBuffer(ClearDepthBuffer {
+                depth_buffer,
+                value,
             }));
     }
 

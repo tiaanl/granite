@@ -27,74 +27,134 @@ impl DrawListRenderer {
                 commands::FrameCommand::UpdateUniform(command) => command.execute(self),
                 commands::FrameCommand::UpdateStorageBuffer(command) => command.execute(self),
                 commands::FrameCommand::UpdateTextureRegion(command) => command.execute(self),
+                commands::FrameCommand::ClearDepthBuffer(command) => {
+                    command.execute(self, frame_context, &mut encoder)
+                }
+                commands::FrameCommand::ResizeDepthBuffer(command) => command.execute(self),
                 commands::FrameCommand::ResizeRenderTarget(command) => command.execute(self),
                 commands::FrameCommand::Draw(command) => {
-                    self.ensure_render_target_ready(&frame_context, command.render_target);
-                    if let Some(mut pass) = self.create_render_pass_for_render_target(
-                        &mut encoder,
-                        frame_context.view,
-                        command.render_target,
-                    ) {
-                        command.execute(self, frame_context.format, &mut pass);
-                    }
+                    command.execute(self, frame_context, &mut encoder)
                 }
                 commands::FrameCommand::DrawMesh(command) => {
-                    self.ensure_render_target_ready(&frame_context, command.render_target);
-
-                    if let Some(mut pass) = self.create_render_pass_for_render_target(
-                        &mut encoder,
-                        frame_context.view,
-                        command.render_target,
-                    ) {
-                        command.execute(self, frame_context.format, &mut pass);
-                    }
+                    command.execute(self, frame_context, &mut encoder)
                 }
-                commands::FrameCommand::DrawMeshInstanced(command) => {
-                    self.ensure_render_target_ready(&frame_context, command.render_target);
-                    if let Some(mut pass) = self.create_render_pass_for_render_target(
-                        &mut encoder,
-                        frame_context.view,
-                        command.render_target,
-                    ) {
-                        command.execute(
-                            self,
-                            frame_context.format,
-                            &mut pass,
-                            &mut frame_instance_buffers,
-                        );
-                    }
-                }
+                commands::FrameCommand::DrawMeshInstanced(command) => command.execute(
+                    self,
+                    frame_context,
+                    &mut encoder,
+                    &mut frame_instance_buffers,
+                ),
             }
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));
     }
 
-    fn create_render_pass_for_render_target<'encoder>(
+    pub(super) fn encode_clear_depth_buffer(
+        &mut self,
+        frame_context: &FrameContext<'_>,
+        encoder: &mut wgpu::CommandEncoder,
+        depth_buffer: DepthBufferId,
+        value: f32,
+    ) -> bool {
+        self.ensure_depth_buffer_ready(frame_context, depth_buffer);
+
+        let Some(depth_record) = self.depth_buffers.get(depth_buffer) else {
+            tracing::warn!("Invalid depth buffer id ({depth_buffer:?})");
+            return false;
+        };
+        let Some(depth_view) = depth_record.view.as_ref() else {
+            tracing::warn!("Depth buffer ({depth_buffer:?}) is not ready to clear");
+            return false;
+        };
+
+        let _render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("clear_depth_buffer_pass"),
+            color_attachments: &[],
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                view: depth_view,
+                depth_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(value),
+                    store: wgpu::StoreOp::Store,
+                }),
+                stencil_ops: None,
+            }),
+            ..Default::default()
+        });
+
+        if let Some(depth_record) = self.depth_buffers.get_mut(depth_buffer) {
+            depth_record.initialized = true;
+        }
+
+        true
+    }
+
+    pub(super) fn create_render_pass_for_draw<'encoder>(
         &self,
         encoder: &'encoder mut wgpu::CommandEncoder,
-        surface_view: &wgpu::TextureView,
+        frame_context: &FrameContext<'_>,
         render_target: RenderTarget,
+        depth_state: Option<MaterialDepthState>,
     ) -> Option<wgpu::RenderPass<'encoder>> {
         let view = match render_target {
-            RenderTarget::Surface => surface_view,
+            RenderTarget::Surface => frame_context.view,
             RenderTarget::Custom(id) => {
                 let record = self.render_targets.get(id)?;
                 record.view.as_ref()?
             }
         };
 
+        let color_attachments = [Some(wgpu::RenderPassColorAttachment {
+            view,
+            depth_slice: None,
+            resolve_target: None,
+            ops: wgpu::Operations {
+                load: wgpu::LoadOp::Load,
+                store: wgpu::StoreOp::Store,
+            },
+        })];
+
+        if let Some(depth_state) = depth_state {
+            let depth_record = self.depth_buffers.get(depth_state.depth_buffer)?;
+            let depth_view = depth_record.view.as_ref()?;
+            let render_target_size = self.render_target_size(frame_context.size, render_target)?;
+            if depth_record.size != render_target_size {
+                tracing::warn!(
+                    "Depth buffer {:?} has size {}x{} but render target is {}x{}.",
+                    depth_state.depth_buffer,
+                    depth_record.size.x,
+                    depth_record.size.y,
+                    render_target_size.x,
+                    render_target_size.y
+                );
+                return None;
+            }
+            if !depth_record.initialized {
+                tracing::warn!(
+                    "Depth buffer {:?} must be cleared before it can be used for drawing.",
+                    depth_state.depth_buffer
+                );
+                return None;
+            }
+
+            return Some(encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("main_render_pass"),
+                color_attachments: &color_attachments,
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: depth_view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                }),
+                ..Default::default()
+            }));
+        }
+
         Some(encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("main_render_pass"),
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view,
-                depth_slice: None,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Load,
-                    store: wgpu::StoreOp::Store,
-                },
-            })],
+            color_attachments: &color_attachments,
             ..Default::default()
         }))
     }
@@ -512,6 +572,15 @@ impl DrawListRenderer {
             blend,
             write_mask: wgpu::ColorWrites::ALL,
         })];
+        let depth_stencil = key
+            .depth_stencil
+            .map(|depth_stencil| wgpu::DepthStencilState {
+                format: depth_stencil.format,
+                depth_write_enabled: depth_stencil.write_enabled,
+                depth_compare: depth_stencil.compare.as_wgpu(),
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState::default(),
+            });
 
         let mut buffers: Vec<wgpu::VertexBufferLayout<'_>> = Vec::new();
         if let (Some(vertex_buffer_layout), Some(vertex_attributes)) =
@@ -544,7 +613,7 @@ impl DrawListRenderer {
                     buffers: buffers.as_slice(),
                 },
                 primitive: wgpu::PrimitiveState::default(),
-                depth_stencil: None,
+                depth_stencil,
                 multisample: wgpu::MultisampleState::default(),
                 fragment: Some(wgpu::FragmentState {
                     module: &fragment_shader_module.shader_module,

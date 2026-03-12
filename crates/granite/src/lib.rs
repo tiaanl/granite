@@ -11,7 +11,7 @@ pub use winit::event::WindowEvent;
 /// loop.
 ///
 /// Typical use:
-/// ```rust
+/// ```ignore
 /// fn main() {
 ///     granite::run(|renderer: &mut Renderer| Scene::new(renderer));
 /// }

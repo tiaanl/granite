@@ -93,9 +93,7 @@ fn expand_uniform_buffer_attribute(
     }
 }
 
-fn expand_storage_buffer_element_attribute(
-    mut input: DeriveInput,
-) -> proc_macro2::TokenStream {
+fn expand_storage_buffer_element_attribute(mut input: DeriveInput) -> proc_macro2::TokenStream {
     ensure_shader_type_derive(&mut input);
 
     quote! {

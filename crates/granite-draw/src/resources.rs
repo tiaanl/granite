@@ -2,12 +2,14 @@ use glam::UVec2;
 use wgpu::{self, util::DeviceExt};
 
 use crate::{
-    AsStorageBufferElement, AsUniformBuffer, BindGroupBindingResourceKey, BlendMode,
-    DrawListRenderer, FragmentShaderId, FrameContext, MaterialBuilder, MaterialId, MaterialRecord,
-    MeshId, RenderTargetId, SamplerId, ShaderModuleId, ShaderVisibility, StorageBufferId,
-    StorageBufferRecord, TextureId, UniformId, UniformRecord, VertexShaderId,
+    AsStorageBufferElement, AsUniformBuffer, BindGroupBindingResourceKey, BlendMode, DepthBufferId,
+    DepthCompare, DrawListRenderer, FragmentShaderId, FrameContext, MaterialBuilder,
+    MaterialDepthState, MaterialId, MaterialRecord, MeshId, RenderTargetId, SamplerId,
+    ShaderModuleId, ShaderVisibility, StorageBufferId, StorageBufferRecord, TextureId, UniformId,
+    UniformRecord, VertexShaderId,
     bindings::DrawBinding,
     common::Id,
+    depth_buffer::{DepthBufferRecord, DepthBufferSize},
     draw_list::RenderTarget,
     encode_storage_buffer_elements,
     mesh::{AsVertexBufferLayout, Mesh},
@@ -74,6 +76,95 @@ impl DrawListRenderer {
             .fragment_shaders
             .push(FragmentShader::create(shader, Option::<String>::None));
         self.create_material(vertex_shader, fragment_shader)
+    }
+
+    /// Creates a new depth buffer that can be attached by materials during drawing.
+    ///
+    /// No GPU texture is allocated at this point; allocation is deferred to the first clear or
+    /// draw call that uses this depth buffer. Newly allocated depth buffers must be cleared before
+    /// they can be loaded by a draw pass.
+    ///
+    /// The `size` parameter controls how the depth buffer's dimensions are determined:
+    /// - [`DepthBufferSize::SurfaceSize`]: automatically tracks the render surface size.
+    ///   Cannot be manually resized; resize happens automatically on first use after a window resize.
+    /// - [`DepthBufferSize::Custom`]: fixed size managed manually via
+    ///   [`DrawList::resize_depth_buffer`].
+    pub fn create_depth_buffer(&mut self, name: &str, size: DepthBufferSize) -> DepthBufferId {
+        let record = match size {
+            DepthBufferSize::SurfaceSize => DepthBufferRecord::create_surface_sized(name),
+            DepthBufferSize::Custom(s) => DepthBufferRecord::create_custom(name, s),
+        };
+        self.depth_buffers.push(record)
+    }
+
+    /// Recreates a depth buffer at a new size.
+    ///
+    /// Only valid for depth buffers created with [`DepthBufferSize::Custom`]. Calling this on
+    /// a [`DepthBufferSize::SurfaceSize`] buffer logs a warning and does nothing; those buffers
+    /// resize automatically when the surface is resized. After resizing, the depth buffer must be
+    /// cleared again before it can be used for drawing.
+    pub fn resize_depth_buffer(&mut self, id: DepthBufferId, size: UVec2) {
+        let Some(record) = self.depth_buffers.get(id) else {
+            tracing::warn!("resize_depth_buffer: invalid depth buffer id ({id:?})");
+            return;
+        };
+        if matches!(record.size_mode, DepthBufferSize::SurfaceSize) {
+            tracing::warn!(
+                "resize_depth_buffer: depth buffer ({id:?}) uses SurfaceSize and resizes \
+                 automatically; manual resize is not allowed"
+            );
+            return;
+        }
+        self.resize_depth_buffer_unchecked(id, size);
+    }
+
+    /// Ensures a depth buffer's GPU texture is allocated and up to date before a clear or draw
+    /// call.
+    ///
+    /// Returns `true` when the backing texture was allocated or reallocated.
+    pub(super) fn ensure_depth_buffer_ready(
+        &mut self,
+        frame_context: &FrameContext<'_>,
+        depth_buffer: DepthBufferId,
+    ) -> bool {
+        let Some(record) = self.depth_buffers.get(depth_buffer) else {
+            tracing::warn!("ensure_depth_buffer_ready: invalid depth buffer id ({depth_buffer:?})");
+            return false;
+        };
+
+        let needs_allocation = match record.size_mode {
+            DepthBufferSize::SurfaceSize => {
+                record.view.is_none() || record.size != frame_context.size
+            }
+            DepthBufferSize::Custom(_) => record.view.is_none(),
+        };
+
+        if !needs_allocation {
+            return false;
+        }
+
+        let size = match record.size_mode {
+            DepthBufferSize::SurfaceSize => frame_context.size,
+            DepthBufferSize::Custom(s) => s,
+        };
+
+        if let Some(record) = self.depth_buffers.get_mut(depth_buffer) {
+            record.allocate(&self.device, size);
+            return true;
+        }
+
+        false
+    }
+
+    pub(super) fn render_target_size(
+        &self,
+        surface_size: UVec2,
+        render_target: RenderTarget,
+    ) -> Option<UVec2> {
+        match render_target {
+            RenderTarget::Surface => Some(surface_size),
+            RenderTarget::Custom(id) => Some(self.render_targets.get(id)?.size),
+        }
     }
 
     /// Creates a new render target that can be drawn into and later bound as a texture.
@@ -181,6 +272,23 @@ impl DrawListRenderer {
         }
     }
 
+    /// Invalidates the GPU texture for a `Custom` depth buffer at a new size.
+    ///
+    /// The texture is not reallocated immediately; it is created lazily on the next draw call
+    /// that uses this buffer.
+    pub(super) fn resize_depth_buffer_unchecked(&mut self, id: DepthBufferId, size: UVec2) {
+        let Some(record) = self.depth_buffers.get_mut(id) else {
+            tracing::warn!("resize_depth_buffer: invalid depth buffer id ({id:?})");
+            return;
+        };
+
+        record.size_mode = DepthBufferSize::Custom(size);
+        record.size = size;
+        record.initialized = false;
+        record._texture = None;
+        record.view = None;
+    }
+
     /// Invalidates the GPU texture for a `Custom` render target at a new size.
     ///
     /// The texture is not reallocated immediately; it is created lazily on the next draw call
@@ -264,12 +372,14 @@ impl DrawListRenderer {
         fragment_shader: FragmentShaderId,
         bindings: &[DrawBinding],
         blend_mode: BlendMode,
+        depth_state: Option<MaterialDepthState>,
     ) -> MaterialId {
         self.materials.push(MaterialRecord {
             vertex_shader,
             fragment_shader,
             bindings: bindings.to_vec(),
             blend_mode,
+            depth_state,
         })
     }
 
@@ -698,6 +808,7 @@ impl<'a> MaterialBuilder<'a> {
             fragment_shader,
             bindings: Vec::new(),
             blend_mode: BlendMode::default(),
+            depth_state: None,
         }
     }
 
@@ -758,6 +869,31 @@ impl<'a> MaterialBuilder<'a> {
         self
     }
 
+    /// Attaches a depth buffer to this material and enables depth writes.
+    pub fn depth_buffer(mut self, depth_buffer: DepthBufferId, compare: DepthCompare) -> Self {
+        self.depth_state = Some(MaterialDepthState {
+            depth_buffer,
+            compare,
+            write_enabled: true,
+        });
+        self
+    }
+
+    /// Attaches a depth buffer to this material with explicit depth-write control.
+    pub fn depth_buffer_with_write(
+        mut self,
+        depth_buffer: DepthBufferId,
+        compare: DepthCompare,
+        write_enabled: bool,
+    ) -> Self {
+        self.depth_state = Some(MaterialDepthState {
+            depth_buffer,
+            compare,
+            write_enabled,
+        });
+        self
+    }
+
     /// Finalizes and stores the material, returning its handle.
     pub fn build(self) -> MaterialId {
         let Self {
@@ -766,12 +902,14 @@ impl<'a> MaterialBuilder<'a> {
             fragment_shader,
             bindings,
             blend_mode,
+            depth_state,
         } = self;
         renderer.insert_material(
             vertex_shader,
             fragment_shader,
             bindings.as_slice(),
             blend_mode,
+            depth_state,
         )
     }
 }

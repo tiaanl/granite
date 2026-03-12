@@ -13,3 +13,4 @@ wgpu.workspace = true
 [dev-dependencies]
 granite = { path = "../granite" }
 granite-macros = { path = "../granite-macros" }
+rand = "0.10.0"

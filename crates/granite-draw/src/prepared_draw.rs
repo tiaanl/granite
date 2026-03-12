@@ -1,10 +1,11 @@
-use crate::draw_list::RenderTarget;
+use crate::{depth_buffer::DepthBufferRecord, draw_list::RenderTarget};
 
 use super::*;
 
 pub struct PreparedDraw {
     pub key: RenderPipelineKey,
     pub bind_groups_to_set: Vec<ResolvedDrawBindGroup>,
+    pub depth_state: Option<MaterialDepthState>,
 }
 
 impl PreparedDraw {
@@ -16,7 +17,7 @@ impl PreparedDraw {
         material: MaterialId,
         instance_buffer_layout: Option<VertexBufferLayout>,
     ) -> Option<PreparedDraw> {
-        let (vertex_shader, fragment_shader, draw_bindings, blend_mode) = {
+        let (vertex_shader, fragment_shader, draw_bindings, blend_mode, depth_state) = {
             let Some(material) = renderer.materials.get(material) else {
                 tracing::warn!("Invalid material id ({:?})", material);
                 return None;
@@ -26,6 +27,7 @@ impl PreparedDraw {
                 material.fragment_shader,
                 material.bindings.clone(),
                 material.blend_mode,
+                material.depth_state,
             )
         };
 
@@ -54,8 +56,15 @@ impl PreparedDraw {
             return None;
         };
 
+        let depth_stencil = depth_state.map(|depth_state| RenderPipelineDepthKey {
+            format: DepthBufferRecord::FORMAT,
+            compare: depth_state.compare,
+            write_enabled: depth_state.write_enabled,
+        });
+
         let key = RenderPipelineKey {
             render_target_format: renderer.render_target_format(surface_format, render_target)?,
+            depth_stencil,
             vertex_buffer_layout,
             instance_buffer_layout,
             pipeline_layout: pipeline_layout_id,
@@ -72,6 +81,7 @@ impl PreparedDraw {
         Some(PreparedDraw {
             key,
             bind_groups_to_set: resolved_bindings.bind_groups_to_set,
+            depth_state,
         })
     }
 }

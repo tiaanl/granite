@@ -2,14 +2,17 @@ use glam::UVec2;
 use wgpu::{self, util::DeviceExt};
 
 use crate::{
-    DrawListRenderer, MaterialId, MeshId, RenderTargetId, StorageBufferId, TextureId, UniformId,
-    draw_list::RenderTarget, mesh::VertexBufferLayout, prepared_draw::PreparedDraw,
+    DepthBufferId, DrawListRenderer, FrameContext, MaterialId, MeshId, RenderTargetId,
+    StorageBufferId, TextureId, UniformId, draw_list::RenderTarget, mesh::VertexBufferLayout,
+    prepared_draw::PreparedDraw,
 };
 
 pub(super) enum FrameCommand {
     UpdateUniform(UpdateUniform),
     UpdateStorageBuffer(UpdateStorageBuffer),
     UpdateTextureRegion(UpdateTextureRegion),
+    ClearDepthBuffer(ClearDepthBuffer),
+    ResizeDepthBuffer(ResizeDepthBuffer),
     ResizeRenderTarget(ResizeRenderTarget),
     Draw(Draw),
     DrawMesh(DrawMesh),
@@ -26,16 +29,17 @@ impl Draw {
     pub(super) fn execute(
         &self,
         renderer: &mut DrawListRenderer,
-        surface_format: wgpu::TextureFormat,
-        render_pass: &mut wgpu::RenderPass<'_>,
+        frame_context: FrameContext<'_>,
+        encoder: &mut wgpu::CommandEncoder,
     ) {
         if self.vertex_count == 0 {
             return;
         }
 
+        renderer.ensure_render_target_ready(&frame_context, self.render_target);
         let Some(prepared_draw) = PreparedDraw::try_new(
             renderer,
-            surface_format,
+            frame_context.format,
             self.render_target,
             None,
             self.material,
@@ -44,7 +48,20 @@ impl Draw {
             return;
         };
 
-        if !bind_pipeline_and_groups(renderer, render_pass, &prepared_draw) {
+        if let Some(depth_state) = prepared_draw.depth_state {
+            renderer.ensure_depth_buffer_ready(&frame_context, depth_state.depth_buffer);
+        }
+
+        let Some(mut render_pass) = renderer.create_render_pass_for_draw(
+            encoder,
+            &frame_context,
+            self.render_target,
+            prepared_draw.depth_state,
+        ) else {
+            return;
+        };
+
+        if !bind_pipeline_and_groups(renderer, &mut render_pass, &prepared_draw) {
             return;
         }
 
@@ -62,12 +79,13 @@ impl DrawMesh {
     pub(super) fn execute(
         &self,
         renderer: &mut DrawListRenderer,
-        surface_format: wgpu::TextureFormat,
-        render_pass: &mut wgpu::RenderPass<'_>,
+        frame_context: FrameContext<'_>,
+        encoder: &mut wgpu::CommandEncoder,
     ) {
+        renderer.ensure_render_target_ready(&frame_context, self.render_target);
         let Some(prepared_draw) = PreparedDraw::try_new(
             renderer,
-            surface_format,
+            frame_context.format,
             self.render_target,
             Some(self.mesh),
             self.material,
@@ -75,7 +93,22 @@ impl DrawMesh {
         ) else {
             return;
         };
-        let Some(index_count) = bind_draw_state(renderer, render_pass, &prepared_draw, self.mesh)
+
+        if let Some(depth_state) = prepared_draw.depth_state {
+            renderer.ensure_depth_buffer_ready(&frame_context, depth_state.depth_buffer);
+        }
+
+        let Some(mut render_pass) = renderer.create_render_pass_for_draw(
+            encoder,
+            &frame_context,
+            self.render_target,
+            prepared_draw.depth_state,
+        ) else {
+            return;
+        };
+
+        let Some(index_count) =
+            bind_draw_state(renderer, &mut render_pass, &prepared_draw, self.mesh)
         else {
             return;
         };
@@ -97,17 +130,18 @@ impl DrawMeshInstanced {
     pub(super) fn execute(
         &self,
         renderer: &mut DrawListRenderer,
-        surface_format: wgpu::TextureFormat,
-        render_pass: &mut wgpu::RenderPass<'_>,
+        frame_context: FrameContext<'_>,
+        encoder: &mut wgpu::CommandEncoder,
         frame_instance_buffers: &mut Vec<wgpu::Buffer>,
     ) {
         if self.instance_count == 0 || self.instance_data.is_empty() {
             return;
         }
 
+        renderer.ensure_render_target_ready(&frame_context, self.render_target);
         let Some(prepared_draw) = PreparedDraw::try_new(
             renderer,
-            surface_format,
+            frame_context.format,
             self.render_target,
             Some(self.mesh),
             self.material,
@@ -115,6 +149,10 @@ impl DrawMeshInstanced {
         ) else {
             return;
         };
+
+        if let Some(depth_state) = prepared_draw.depth_state {
+            renderer.ensure_depth_buffer_ready(&frame_context, depth_state.depth_buffer);
+        }
 
         frame_instance_buffers.push(renderer.device.create_buffer_init(
             &wgpu::util::BufferInitDescriptor {
@@ -125,7 +163,17 @@ impl DrawMeshInstanced {
         ));
         let instance_buffer = frame_instance_buffers.last().unwrap();
 
-        let Some(index_count) = bind_draw_state(renderer, render_pass, &prepared_draw, self.mesh)
+        let Some(mut render_pass) = renderer.create_render_pass_for_draw(
+            encoder,
+            &frame_context,
+            self.render_target,
+            prepared_draw.depth_state,
+        ) else {
+            return;
+        };
+
+        let Some(index_count) =
+            bind_draw_state(renderer, &mut render_pass, &prepared_draw, self.mesh)
         else {
             return;
         };
@@ -153,8 +201,7 @@ pub(super) struct UpdateStorageBuffer {
 
 impl UpdateStorageBuffer {
     pub(super) fn execute(&self, renderer: &mut DrawListRenderer) {
-        let _ =
-            renderer.write_storage_buffer_bytes(self.storage_buffer, self.data.as_slice());
+        let _ = renderer.write_storage_buffer_bytes(self.storage_buffer, self.data.as_slice());
     }
 }
 
@@ -176,6 +223,27 @@ impl UpdateTextureRegion {
     }
 }
 
+pub(super) struct ClearDepthBuffer {
+    pub depth_buffer: DepthBufferId,
+    pub value: f32,
+}
+
+impl ClearDepthBuffer {
+    pub(super) fn execute(
+        &self,
+        renderer: &mut DrawListRenderer,
+        frame_context: FrameContext<'_>,
+        encoder: &mut wgpu::CommandEncoder,
+    ) {
+        let _ = renderer.encode_clear_depth_buffer(
+            &frame_context,
+            encoder,
+            self.depth_buffer,
+            self.value,
+        );
+    }
+}
+
 pub(super) struct ResizeRenderTarget {
     pub render_target: RenderTargetId,
     pub size: UVec2,
@@ -184,6 +252,17 @@ pub(super) struct ResizeRenderTarget {
 impl ResizeRenderTarget {
     pub(super) fn execute(&self, renderer: &mut DrawListRenderer) {
         renderer.resize_render_target(self.render_target, self.size);
+    }
+}
+
+pub(super) struct ResizeDepthBuffer {
+    pub depth_buffer: DepthBufferId,
+    pub size: UVec2,
+}
+
+impl ResizeDepthBuffer {
+    pub(super) fn execute(&self, renderer: &mut DrawListRenderer) {
+        renderer.resize_depth_buffer(self.depth_buffer, self.size);
     }
 }
 

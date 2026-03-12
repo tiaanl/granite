@@ -17,6 +17,7 @@ use crate::{
 mod bindings;
 mod commands;
 mod common;
+pub mod depth_buffer;
 pub mod draw_list;
 mod execution;
 pub mod mesh;
@@ -40,6 +41,8 @@ pub type MaterialId = Id;
 pub type MeshId = Id;
 /// Handle to a render target resource.
 pub type RenderTargetId = Id;
+/// Handle to a depth buffer resource.
+pub type DepthBufferId = Id;
 /// Handle to a shader module resource.
 pub type ShaderModuleId = Id;
 /// Handle to a vertex shader entry-point resource.
@@ -132,6 +135,7 @@ pub struct MaterialBuilder<'a> {
     fragment_shader: FragmentShaderId,
     bindings: Vec<bindings::DrawBinding>,
     blend_mode: BlendMode,
+    depth_state: Option<MaterialDepthState>,
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
@@ -190,9 +194,52 @@ pub enum BlendMode {
     Premultiplied,
 }
 
+/// Depth comparison behavior for depth-tested materials.
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub enum DepthCompare {
+    Never,
+    Less,
+    Equal,
+    LessEqual,
+    Greater,
+    NotEqual,
+    GreaterEqual,
+    Always,
+}
+
+impl DepthCompare {
+    pub fn as_wgpu(self) -> wgpu::CompareFunction {
+        match self {
+            Self::Never => wgpu::CompareFunction::Never,
+            Self::Less => wgpu::CompareFunction::Less,
+            Self::Equal => wgpu::CompareFunction::Equal,
+            Self::LessEqual => wgpu::CompareFunction::LessEqual,
+            Self::Greater => wgpu::CompareFunction::Greater,
+            Self::NotEqual => wgpu::CompareFunction::NotEqual,
+            Self::GreaterEqual => wgpu::CompareFunction::GreaterEqual,
+            Self::Always => wgpu::CompareFunction::Always,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
+struct MaterialDepthState {
+    depth_buffer: DepthBufferId,
+    compare: DepthCompare,
+    write_enabled: bool,
+}
+
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
+struct RenderPipelineDepthKey {
+    format: wgpu::TextureFormat,
+    compare: DepthCompare,
+    write_enabled: bool,
+}
+
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 struct RenderPipelineKey {
     render_target_format: wgpu::TextureFormat,
+    depth_stencil: Option<RenderPipelineDepthKey>,
     vertex_buffer_layout: Option<Id>,
     instance_buffer_layout: Option<Id>,
     pipeline_layout: Id,
@@ -222,6 +269,7 @@ struct MaterialRecord {
     fragment_shader: FragmentShaderId,
     bindings: Vec<bindings::DrawBinding>,
     blend_mode: BlendMode,
+    depth_state: Option<MaterialDepthState>,
 }
 
 struct ResolvedDrawBindGroup {
@@ -240,6 +288,7 @@ pub struct DrawListRenderer {
     device: wgpu::Device,
     queue: wgpu::Queue,
 
+    depth_buffers: StableVec<depth_buffer::DepthBufferRecord>,
     render_targets: StableVec<render_target::RenderTargetRecord>,
     vertex_buffer_layouts: StableSet<VertexBufferLayout>,
     instance_buffer_layouts: StableSet<VertexBufferLayout>,
@@ -282,6 +331,7 @@ impl DrawListRenderer {
         Self {
             device,
             queue,
+            depth_buffers: StableVec::default(),
             render_targets: StableVec::default(),
             vertex_buffer_layouts: StableSet::default(),
             instance_buffer_layouts: StableSet::default(),
