@@ -24,10 +24,12 @@ mod prepared_draw;
 pub mod render_target;
 mod resources;
 pub mod sampler;
-mod textures;
+pub mod textures;
 
 /// Handle to a uniform resource.
 pub type UniformId = Id;
+/// Handle to a storage buffer resource.
+pub type StorageBufferId = Id;
 /// Handle to a texture resource.
 pub type TextureId = Id;
 /// Handle to a sampler resource.
@@ -69,6 +71,29 @@ fn encode_uniform_bytes<T: AsUniformBuffer + ?Sized>(
     Ok(buffer.into_inner())
 }
 
+/// Trait implemented by element types that can be uploaded into storage-buffer arrays.
+pub trait AsStorageBufferElement:
+    crate::encase::ShaderType + crate::encase::ShaderSize + crate::encase::internal::WriteInto
+{
+}
+
+impl<T> AsStorageBufferElement for T where
+    T: crate::encase::ShaderType + crate::encase::ShaderSize + crate::encase::internal::WriteInto
+{
+}
+
+fn encode_storage_buffer_elements<T: AsStorageBufferElement>(
+    storage_buffer: &[T],
+) -> crate::encase::internal::Result<Vec<u8>> {
+    let mut buffer = crate::encase::StorageBuffer::new(Vec::new());
+    buffer.write(storage_buffer)?;
+    Ok(buffer.into_inner())
+}
+
+fn storage_buffer_min_binding_size<T: AsStorageBufferElement>() -> wgpu::BufferSize {
+    <[T] as crate::encase::ShaderType>::min_size()
+}
+
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 #[allow(dead_code)]
 /// Shader stage visibility flags for bindings.
@@ -100,7 +125,7 @@ struct PipelineLayoutKey {
 }
 
 #[must_use]
-/// Fluent material builder for adding uniform/texture/sampler bindings.
+/// Fluent material builder for adding uniform/storage/texture/sampler bindings.
 pub struct MaterialBuilder<'a> {
     renderer: &'a mut DrawListRenderer,
     vertex_shader: VertexShaderId,
@@ -112,6 +137,7 @@ pub struct MaterialBuilder<'a> {
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 enum BindGroupLayoutBindingTypeKey {
     Uniform,
+    StorageBuffer,
     Texture,
     Sampler,
 }
@@ -132,6 +158,7 @@ struct BindGroupLayoutKey {
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 enum BindGroupBindingResourceKey {
     Uniform(UniformId),
+    StorageBuffer(StorageBufferId),
     Texture(TextureId),
     RenderTarget(RenderTargetId),
     Sampler(SamplerId),
@@ -184,6 +211,12 @@ struct UniformRecord {
     min_binding_size: wgpu::BufferSize,
 }
 
+struct StorageBufferRecord {
+    buffer: Id,
+    min_binding_size: wgpu::BufferSize,
+    byte_len: u64,
+}
+
 struct MaterialRecord {
     vertex_shader: VertexShaderId,
     fragment_shader: FragmentShaderId,
@@ -214,6 +247,7 @@ pub struct DrawListRenderer {
     bind_groups: StableMap<BindGroupKey, BindGroupRecord>,
     buffers: StableVec<wgpu::Buffer>,
     uniforms: StableVec<UniformRecord>,
+    storage_buffers: StableVec<StorageBufferRecord>,
     textures: StableVec<textures::TextureRecord>,
     samplers: StableVec<wgpu::Sampler>,
     materials: StableVec<MaterialRecord>,
@@ -255,6 +289,7 @@ impl DrawListRenderer {
             bind_groups: StableMap::default(),
             buffers: StableVec::default(),
             uniforms: StableVec::default(),
+            storage_buffers: StableVec::default(),
             textures: StableVec::default(),
             samplers: StableVec::default(),
             materials: StableVec::default(),

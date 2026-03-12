@@ -2,12 +2,13 @@ use glam::UVec2;
 use wgpu::{self, util::DeviceExt};
 
 use crate::{
-    DrawListRenderer, MaterialId, MeshId, RenderTargetId, TextureId, UniformId,
+    DrawListRenderer, MaterialId, MeshId, RenderTargetId, StorageBufferId, TextureId, UniformId,
     draw_list::RenderTarget, mesh::VertexBufferLayout, prepared_draw::PreparedDraw,
 };
 
 pub(super) enum FrameCommand {
     UpdateUniform(UpdateUniform),
+    UpdateStorageBuffer(UpdateStorageBuffer),
     UpdateTextureRegion(UpdateTextureRegion),
     ResizeRenderTarget(ResizeRenderTarget),
     Draw(Draw),
@@ -142,6 +143,18 @@ pub(super) struct UpdateUniform {
 impl UpdateUniform {
     pub(super) fn execute(&self, renderer: &mut DrawListRenderer) {
         let _ = renderer.write_uniform_bytes(self.uniform, self.data.as_slice());
+    }
+}
+
+pub(super) struct UpdateStorageBuffer {
+    pub storage_buffer: StorageBufferId,
+    pub data: Vec<u8>,
+}
+
+impl UpdateStorageBuffer {
+    pub(super) fn execute(&self, renderer: &mut DrawListRenderer) {
+        let _ =
+            renderer.write_storage_buffer_bytes(self.storage_buffer, self.data.as_slice());
     }
 }
 

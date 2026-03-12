@@ -2,15 +2,18 @@ use glam::UVec2;
 use wgpu::{self, util::DeviceExt};
 
 use crate::{
-    AsUniformBuffer, BindGroupBindingResourceKey, BlendMode, DrawListRenderer, FragmentShaderId,
-    FrameContext, MaterialBuilder, MaterialId, MaterialRecord, MeshId, RenderTargetId, SamplerId,
-    ShaderModuleId, TextureId, UniformId, UniformRecord, VertexShaderId,
+    AsStorageBufferElement, AsUniformBuffer, BindGroupBindingResourceKey, BlendMode,
+    DrawListRenderer, FragmentShaderId, FrameContext, MaterialBuilder, MaterialId, MaterialRecord,
+    MeshId, RenderTargetId, SamplerId, ShaderModuleId, ShaderVisibility, StorageBufferId,
+    StorageBufferRecord, TextureId, UniformId, UniformRecord, VertexShaderId,
     bindings::DrawBinding,
     common::Id,
     draw_list::RenderTarget,
+    encode_storage_buffer_elements,
     mesh::{AsVertexBufferLayout, Mesh},
     render_target::{RenderTargetFormat, RenderTargetRecord, RenderTargetSize},
     sampler::{SamplerAddressing, SamplerFiltering},
+    storage_buffer_min_binding_size,
     textures::{TextureFormat, TextureRecord},
 };
 
@@ -270,19 +273,24 @@ impl DrawListRenderer {
         })
     }
 
-    fn create_uniform_buffer(&mut self, name: &str, data: &[u8]) -> Id {
+    fn create_buffer_with_usage(
+        &mut self,
+        name: &str,
+        data: &[u8],
+        usage: wgpu::BufferUsages,
+    ) -> Id {
         let buffer = self
             .device
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some(name),
                 contents: data,
-                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                usage,
             });
 
         self.buffers.push(buffer)
     }
 
-    fn write_uniform_buffer_bytes(&self, buffer_id: Id, data: &[u8]) -> bool {
+    fn write_buffer_bytes(&self, buffer_id: Id, data: &[u8]) -> bool {
         let Some(buffer) = self.buffers.get(buffer_id) else {
             tracing::warn!("Invalid buffer id ({buffer_id:?})");
             return false;
@@ -301,8 +309,11 @@ impl DrawListRenderer {
         let initial_bytes = initial_value
             .encode_bytes()
             .unwrap_or_else(|error| panic!("Could not encode uniform `{name}`: {error}"));
-        let buffer =
-            self.create_uniform_buffer(&format!("{name}_uniform"), initial_bytes.as_slice());
+        let buffer = self.create_buffer_with_usage(
+            &format!("{name}_uniform"),
+            initial_bytes.as_slice(),
+            wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        );
         self.uniforms.push(UniformRecord {
             buffer,
             visibility: T::VISIBILITY,
@@ -342,7 +353,170 @@ impl DrawListRenderer {
             );
             return false;
         }
-        self.write_uniform_buffer_bytes(uniform.buffer, data)
+        self.write_buffer_bytes(uniform.buffer, data)
+    }
+
+    fn evict_storage_buffer_bind_groups(&mut self, id: StorageBufferId) {
+        self.bind_groups.retain_keys(|key| {
+            !key.bindings
+                .iter()
+                .any(|binding| binding.resource == BindGroupBindingResourceKey::StorageBuffer(id))
+        });
+    }
+
+    /// Creates a read-only storage buffer array resource with initial elements.
+    pub fn create_storage_buffer<T: AsStorageBufferElement>(
+        &mut self,
+        name: &str,
+        initial_values: &[T],
+    ) -> Option<StorageBufferId> {
+        if initial_values.is_empty() {
+            tracing::warn!("Could not create storage buffer `{name}` with zero elements.");
+            return None;
+        }
+
+        let initial_bytes = encode_storage_buffer_elements(initial_values)
+            .unwrap_or_else(|error| panic!("Could not encode storage buffer `{name}`: {error}"));
+        let Ok(byte_len) = u64::try_from(initial_bytes.len()) else {
+            tracing::warn!(
+                "Could not create storage buffer `{name}`: byte length does not fit in u64."
+            );
+            return None;
+        };
+
+        let buffer = self.create_buffer_with_usage(
+            &format!("{name}_storage"),
+            initial_bytes.as_slice(),
+            wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+        );
+        Some(self.storage_buffers.push(StorageBufferRecord {
+            buffer,
+            min_binding_size: storage_buffer_min_binding_size::<T>(),
+            byte_len,
+        }))
+    }
+
+    /// Creates a read-only storage buffer array resource from raw bytes.
+    pub fn create_storage_buffer_bytes(
+        &mut self,
+        name: &str,
+        min_binding_size: wgpu::BufferSize,
+        data: &[u8],
+    ) -> Option<StorageBufferId> {
+        if data.is_empty() {
+            tracing::warn!("Could not create storage buffer `{name}` with zero bytes.");
+            return None;
+        }
+
+        let Ok(byte_len) = u64::try_from(data.len()) else {
+            tracing::warn!(
+                "Could not create storage buffer `{name}`: byte length does not fit in u64."
+            );
+            return None;
+        };
+        if byte_len < min_binding_size.get() {
+            tracing::warn!(
+                "Could not create storage buffer `{name}`: {} bytes is smaller than the declared minimum binding size {}.",
+                byte_len,
+                min_binding_size.get()
+            );
+            return None;
+        }
+
+        let buffer = self.create_buffer_with_usage(
+            &format!("{name}_storage"),
+            data,
+            wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+        );
+        Some(self.storage_buffers.push(StorageBufferRecord {
+            buffer,
+            min_binding_size,
+            byte_len,
+        }))
+    }
+
+    /// Writes a complete array into an existing typed storage buffer.
+    pub fn write_storage_buffer<T: AsStorageBufferElement>(
+        &mut self,
+        storage_buffer: StorageBufferId,
+        data: &[T],
+    ) -> bool {
+        if data.is_empty() {
+            tracing::warn!("Storage buffer write rejected for {storage_buffer:?}: zero elements.");
+            return false;
+        }
+
+        let encoded = match encode_storage_buffer_elements(data) {
+            Ok(encoded) => encoded,
+            Err(error) => {
+                tracing::warn!("Could not encode storage buffer for {storage_buffer:?}: {error}");
+                return false;
+            }
+        };
+        self.write_storage_buffer_bytes(storage_buffer, encoded.as_slice())
+    }
+
+    /// Writes raw bytes into an existing storage buffer.
+    pub fn write_storage_buffer_bytes(
+        &mut self,
+        storage_buffer_id: StorageBufferId,
+        data: &[u8],
+    ) -> bool {
+        let Some(storage_buffer) = self.storage_buffers.get(storage_buffer_id) else {
+            tracing::warn!("Invalid storage buffer id ({storage_buffer_id:?})");
+            return false;
+        };
+        let buffer_id = storage_buffer.buffer;
+        let min_binding_size = storage_buffer.min_binding_size;
+        let current_byte_len = storage_buffer.byte_len;
+
+        if data.is_empty() {
+            tracing::warn!("Storage buffer write rejected for {storage_buffer_id:?}: zero bytes.");
+            return false;
+        }
+
+        let Ok(byte_len) = u64::try_from(data.len()) else {
+            tracing::warn!(
+                "Storage buffer write rejected for {storage_buffer_id:?}: byte length does not fit in u64."
+            );
+            return false;
+        };
+        if byte_len < min_binding_size.get() {
+            tracing::warn!(
+                "Storage buffer write size mismatch for {storage_buffer_id:?}: minimum binding size is {} bytes, got {} bytes.",
+                min_binding_size.get(),
+                byte_len
+            );
+            return false;
+        }
+        if byte_len == current_byte_len {
+            return self.write_buffer_bytes(buffer_id, data);
+        }
+
+        self.evict_storage_buffer_bind_groups(storage_buffer_id);
+
+        let Some(buffer) = self.buffers.get_mut(buffer_id) else {
+            tracing::warn!(
+                "Invalid buffer id ({:?}) for storage buffer ({storage_buffer_id:?})",
+                buffer_id
+            );
+            return false;
+        };
+        *buffer = self
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("storage_buffer"),
+                contents: data,
+                usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            });
+
+        if let Some(storage_buffer) = self.storage_buffers.get_mut(storage_buffer_id) {
+            storage_buffer.byte_len = byte_len;
+            return true;
+        }
+
+        tracing::warn!("Invalid storage buffer id ({storage_buffer_id:?})");
+        false
     }
 
     /// Create a new texture with the pixels given.
@@ -535,6 +709,27 @@ impl<'a> MaterialBuilder<'a> {
     /// Adds a uniform binding at `@group(group) @binding(binding)`.
     pub fn uniform(self, group: u32, binding: u32, uniform: UniformId) -> Self {
         self.push_binding(DrawBinding::uniform(group, binding, uniform))
+    }
+
+    /// Adds a storage buffer binding at `@group(group) @binding(binding)`.
+    pub fn storage_buffer(self, group: u32, binding: u32, storage_buffer: StorageBufferId) -> Self {
+        self.push_binding(DrawBinding::storage_buffer(group, binding, storage_buffer))
+    }
+
+    /// Adds a storage buffer binding with explicit visibility.
+    pub fn storage_buffer_with_visibility(
+        self,
+        group: u32,
+        binding: u32,
+        storage_buffer: StorageBufferId,
+        visibility: ShaderVisibility,
+    ) -> Self {
+        self.push_binding(DrawBinding::storage_buffer_with_visibility(
+            group,
+            binding,
+            storage_buffer,
+            visibility,
+        ))
     }
 
     /// Adds a texture binding at `@group(group) @binding(binding)`.

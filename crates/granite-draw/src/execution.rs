@@ -25,6 +25,7 @@ impl DrawListRenderer {
         for command in commands.iter() {
             match command {
                 commands::FrameCommand::UpdateUniform(command) => command.execute(self),
+                commands::FrameCommand::UpdateStorageBuffer(command) => command.execute(self),
                 commands::FrameCommand::UpdateTextureRegion(command) => command.execute(self),
                 commands::FrameCommand::ResizeRenderTarget(command) => command.execute(self),
                 commands::FrameCommand::Draw(command) => {
@@ -143,94 +144,117 @@ impl DrawListRenderer {
         )> = Vec::new();
 
         for draw_binding in draw_bindings.into_iter() {
-            let (bind_group_binding_key, bind_group_layout_binding_key) =
-                match draw_binding.resource {
-                    bindings::DrawBindingResource::Uniform(uniform_binding_id) => {
-                        let Some(uniform) = self.uniforms.get(uniform_binding_id) else {
-                            tracing::warn!("Invalid uniform id ({uniform_binding_id:?})");
-                            return None;
-                        };
+            let (bind_group_binding_key, bind_group_layout_binding_key) = match draw_binding
+                .resource
+            {
+                bindings::DrawBindingResource::Uniform(uniform_binding_id) => {
+                    let Some(uniform) = self.uniforms.get(uniform_binding_id) else {
+                        tracing::warn!("Invalid uniform id ({uniform_binding_id:?})");
+                        return None;
+                    };
 
-                        (
-                            BindGroupBindingKey {
-                                binding: draw_binding.binding,
-                                resource: BindGroupBindingResourceKey::Uniform(uniform_binding_id),
-                            },
-                            BindGroupLayoutBindingKey {
-                                binding: draw_binding.binding,
-                                visibility: uniform.visibility,
-                                ty: BindGroupLayoutBindingTypeKey::Uniform,
-                                min_binding_size: Some(uniform.min_binding_size),
-                            },
-                        )
-                    }
-                    bindings::DrawBindingResource::Texture {
-                        texture,
-                        visibility,
-                    } => {
-                        if self.textures.get(texture).is_none() {
-                            tracing::warn!("Invalid texture id ({texture:?})");
-                            return None;
-                        }
+                    (
+                        BindGroupBindingKey {
+                            binding: draw_binding.binding,
+                            resource: BindGroupBindingResourceKey::Uniform(uniform_binding_id),
+                        },
+                        BindGroupLayoutBindingKey {
+                            binding: draw_binding.binding,
+                            visibility: uniform.visibility,
+                            ty: BindGroupLayoutBindingTypeKey::Uniform,
+                            min_binding_size: Some(uniform.min_binding_size),
+                        },
+                    )
+                }
+                bindings::DrawBindingResource::StorageBuffer {
+                    storage_buffer: storage_buffer_id,
+                    visibility,
+                } => {
+                    let Some(storage_buffer) = self.storage_buffers.get(storage_buffer_id) else {
+                        tracing::warn!("Invalid storage buffer id ({storage_buffer_id:?})");
+                        return None;
+                    };
 
-                        (
-                            BindGroupBindingKey {
-                                binding: draw_binding.binding,
-                                resource: BindGroupBindingResourceKey::Texture(texture),
-                            },
-                            BindGroupLayoutBindingKey {
-                                binding: draw_binding.binding,
-                                visibility,
-                                ty: BindGroupLayoutBindingTypeKey::Texture,
-                                min_binding_size: None,
-                            },
-                        )
+                    (
+                        BindGroupBindingKey {
+                            binding: draw_binding.binding,
+                            resource: BindGroupBindingResourceKey::StorageBuffer(storage_buffer_id),
+                        },
+                        BindGroupLayoutBindingKey {
+                            binding: draw_binding.binding,
+                            visibility,
+                            ty: BindGroupLayoutBindingTypeKey::StorageBuffer,
+                            min_binding_size: Some(storage_buffer.min_binding_size),
+                        },
+                    )
+                }
+                bindings::DrawBindingResource::Texture {
+                    texture,
+                    visibility,
+                } => {
+                    if self.textures.get(texture).is_none() {
+                        tracing::warn!("Invalid texture id ({texture:?})");
+                        return None;
                     }
-                    bindings::DrawBindingResource::RenderTarget {
-                        render_target,
-                        visibility,
-                    } => {
-                        if self.render_targets.get(render_target).is_none() {
-                            tracing::warn!("Invalid render target id ({render_target:?})");
-                            return None;
-                        }
 
-                        (
-                            BindGroupBindingKey {
-                                binding: draw_binding.binding,
-                                resource: BindGroupBindingResourceKey::RenderTarget(render_target),
-                            },
-                            BindGroupLayoutBindingKey {
-                                binding: draw_binding.binding,
-                                visibility,
-                                ty: BindGroupLayoutBindingTypeKey::Texture,
-                                min_binding_size: None,
-                            },
-                        )
+                    (
+                        BindGroupBindingKey {
+                            binding: draw_binding.binding,
+                            resource: BindGroupBindingResourceKey::Texture(texture),
+                        },
+                        BindGroupLayoutBindingKey {
+                            binding: draw_binding.binding,
+                            visibility,
+                            ty: BindGroupLayoutBindingTypeKey::Texture,
+                            min_binding_size: None,
+                        },
+                    )
+                }
+                bindings::DrawBindingResource::RenderTarget {
+                    render_target,
+                    visibility,
+                } => {
+                    if self.render_targets.get(render_target).is_none() {
+                        tracing::warn!("Invalid render target id ({render_target:?})");
+                        return None;
                     }
-                    bindings::DrawBindingResource::Sampler {
-                        sampler,
-                        visibility,
-                    } => {
-                        if self.samplers.get(sampler).is_none() {
-                            tracing::warn!("Invalid sampler id ({sampler:?})");
-                            return None;
-                        }
 
-                        (
-                            BindGroupBindingKey {
-                                binding: draw_binding.binding,
-                                resource: BindGroupBindingResourceKey::Sampler(sampler),
-                            },
-                            BindGroupLayoutBindingKey {
-                                binding: draw_binding.binding,
-                                visibility,
-                                ty: BindGroupLayoutBindingTypeKey::Sampler,
-                                min_binding_size: None,
-                            },
-                        )
+                    (
+                        BindGroupBindingKey {
+                            binding: draw_binding.binding,
+                            resource: BindGroupBindingResourceKey::RenderTarget(render_target),
+                        },
+                        BindGroupLayoutBindingKey {
+                            binding: draw_binding.binding,
+                            visibility,
+                            ty: BindGroupLayoutBindingTypeKey::Texture,
+                            min_binding_size: None,
+                        },
+                    )
+                }
+                bindings::DrawBindingResource::Sampler {
+                    sampler,
+                    visibility,
+                } => {
+                    if self.samplers.get(sampler).is_none() {
+                        tracing::warn!("Invalid sampler id ({sampler:?})");
+                        return None;
                     }
-                };
+
+                    (
+                        BindGroupBindingKey {
+                            binding: draw_binding.binding,
+                            resource: BindGroupBindingResourceKey::Sampler(sampler),
+                        },
+                        BindGroupLayoutBindingKey {
+                            binding: draw_binding.binding,
+                            visibility,
+                            ty: BindGroupLayoutBindingTypeKey::Sampler,
+                            min_binding_size: None,
+                        },
+                    )
+                }
+            };
 
             if let Some((group, bindings, layout_bindings)) = grouped_bindings.last_mut()
                 && *group == draw_binding.group
@@ -305,6 +329,11 @@ impl DrawListRenderer {
                     has_dynamic_offset: false,
                     min_binding_size: binding.min_binding_size,
                 },
+                BindGroupLayoutBindingTypeKey::StorageBuffer => wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Storage { read_only: true },
+                    has_dynamic_offset: false,
+                    min_binding_size: binding.min_binding_size,
+                },
                 BindGroupLayoutBindingTypeKey::Texture => wgpu::BindingType::Texture {
                     sample_type: wgpu::TextureSampleType::Float { filterable: true },
                     view_dimension: wgpu::TextureViewDimension::D2,
@@ -346,6 +375,11 @@ impl DrawListRenderer {
                     BindGroupBindingResourceKey::Uniform(uniform_binding_id) => {
                         let uniform = self.uniforms.get(uniform_binding_id)?;
                         let buffer = self.buffers.get(uniform.buffer)?;
+                        buffer.as_entire_binding()
+                    }
+                    BindGroupBindingResourceKey::StorageBuffer(storage_buffer_id) => {
+                        let storage_buffer = self.storage_buffers.get(storage_buffer_id)?;
+                        let buffer = self.buffers.get(storage_buffer.buffer)?;
                         buffer.as_entire_binding()
                     }
                     BindGroupBindingResourceKey::Texture(texture_id) => {

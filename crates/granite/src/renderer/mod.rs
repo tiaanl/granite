@@ -73,9 +73,16 @@ impl Renderer {
             return Err(RendererCreateError::DetermineConfigurtation);
         };
 
-        let (device, queue) =
-            pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor::default()))
-                .map_err(|error| RendererCreateError::RequestDevice(error.to_string()))?;
+        let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
+            required_features: wgpu::Features::TEXTURE_BINDING_ARRAY
+                | wgpu::Features::SAMPLED_TEXTURE_AND_STORAGE_BUFFER_ARRAY_NON_UNIFORM_INDEXING,
+            required_limits: wgpu::Limits {
+                max_binding_array_elements_per_shader_stage: 1024,
+                ..Default::default()
+            },
+            ..Default::default()
+        }))
+        .map_err(|error| RendererCreateError::RequestDevice(error.to_string()))?;
 
         surface.configure(&device, &surface_config);
 

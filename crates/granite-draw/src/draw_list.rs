@@ -1,12 +1,13 @@
 use glam::UVec2;
 
 use crate::{
-    AsUniformBuffer, MaterialId, MeshId, RenderTargetId, TextureId, UniformId,
     commands::{
-        Draw, DrawMesh, DrawMeshInstanced, FrameCommand, ResizeRenderTarget, UpdateTextureRegion,
-        UpdateUniform,
+        Draw, DrawMesh, DrawMeshInstanced, FrameCommand, ResizeRenderTarget, UpdateStorageBuffer,
+        UpdateTextureRegion, UpdateUniform,
     },
     mesh::AsInstanceBufferLayout,
+    AsStorageBufferElement, AsUniformBuffer, MaterialId, MeshId, RenderTargetId, StorageBufferId,
+    TextureId, UniformId, encode_storage_buffer_elements,
 };
 
 /// Specify the render target for a draw command.
@@ -46,6 +47,44 @@ impl DrawList {
             .push(FrameCommand::UpdateUniform(UpdateUniform {
                 uniform,
                 data: encoded,
+            }));
+    }
+
+    /// Queues an update for a previously created storage-buffer array.
+    pub fn update_storage_buffer<T: AsStorageBufferElement>(
+        &mut self,
+        storage_buffer: StorageBufferId,
+        data: &[T],
+    ) {
+        if data.is_empty() {
+            tracing::warn!(
+                "Could not encode queued storage buffer update for {storage_buffer:?}: zero elements."
+            );
+            return;
+        }
+
+        let encoded = match encode_storage_buffer_elements(data) {
+            Ok(encoded) => encoded,
+            Err(error) => {
+                tracing::warn!(
+                    "Could not encode queued storage buffer update for {storage_buffer:?}: {error}"
+                );
+                return;
+            }
+        };
+        self.commands
+            .push(FrameCommand::UpdateStorageBuffer(UpdateStorageBuffer {
+                storage_buffer,
+                data: encoded,
+            }));
+    }
+
+    /// Queues a raw-byte update for a previously created storage buffer.
+    pub fn update_storage_buffer_bytes(&mut self, storage_buffer: StorageBufferId, data: &[u8]) {
+        self.commands
+            .push(FrameCommand::UpdateStorageBuffer(UpdateStorageBuffer {
+                storage_buffer,
+                data: data.to_vec(),
             }));
     }
 

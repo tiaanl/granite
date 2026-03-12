@@ -10,8 +10,8 @@ pub use winit::keyboard::KeyCode;
 
 #[derive(Clone, Copy, Default, Eq, Ord, PartialEq, PartialOrd)]
 pub struct MousePosition {
-    x: i32,
-    y: i32,
+    pub x: i32,
+    pub y: i32,
 }
 
 impl MousePosition {
@@ -32,12 +32,15 @@ impl std::ops::Sub for MousePosition {
     }
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct InputState {
     key_pressed: HashSet<KeyCode>,
+    key_just_pressed: HashSet<KeyCode>,
     mouse_pressed: HashSet<MouseButton>,
-    last_mouse_position: MousePosition,
-    mouse_delta: MousePosition,
+    mouse_just_pressed: HashSet<MouseButton>,
+    mouse_just_released: HashSet<MouseButton>,
+    last_mouse_position: Option<MousePosition>,
+    mouse_delta: Option<MousePosition>,
     mouse_wheel_delta: f32,
 }
 
@@ -50,6 +53,7 @@ impl InputState {
                 {
                     if event.state == ElementState::Pressed {
                         self.key_pressed.insert(key);
+                        self.key_just_pressed.insert(key);
                     } else {
                         self.key_pressed.remove(&key);
                     }
@@ -59,16 +63,18 @@ impl InputState {
             WindowEvent::MouseInput { state, button, .. } => {
                 if state.is_pressed() {
                     self.mouse_pressed.insert(*button);
+                    self.mouse_just_pressed.insert(*button);
                 } else {
                     self.mouse_pressed.remove(button);
+                    self.mouse_just_released.insert(*button);
                 }
             }
 
             WindowEvent::CursorMoved { position, .. } => {
                 let current =
                     MousePosition::from_xy(position.x.round() as i32, position.y.round() as i32);
-                self.mouse_delta = current - self.last_mouse_position;
-                self.last_mouse_position = current;
+                self.mouse_delta = self.last_mouse_position.map(|pos| current - pos);
+                self.last_mouse_position = Some(current);
             }
 
             WindowEvent::MouseWheel { delta, .. } => {
@@ -84,7 +90,10 @@ impl InputState {
 
     /// Reset data being tracked per frame.
     pub fn reset_current_frame(&mut self) {
-        self.mouse_delta = MousePosition::default();
+        self.key_just_pressed.clear();
+        self.mouse_just_pressed.clear();
+        self.mouse_just_released.clear();
+        self.mouse_delta = None;
         self.mouse_wheel_delta = 0.0;
     }
 }
@@ -96,7 +105,12 @@ impl InputState {
     }
 
     #[inline]
-    pub fn mouse_position(&self) -> MousePosition {
+    pub fn key_just_pressed(&self, key: KeyCode) -> bool {
+        self.key_just_pressed.contains(&key)
+    }
+
+    #[inline]
+    pub fn mouse_position(&self) -> Option<MousePosition> {
         self.last_mouse_position
     }
 
@@ -106,7 +120,17 @@ impl InputState {
     }
 
     #[inline]
-    pub fn mouse_delta(&self) -> MousePosition {
+    pub fn mouse_just_pressed(&self, button: MouseButton) -> bool {
+        self.mouse_just_pressed.contains(&button)
+    }
+
+    #[inline]
+    pub fn mouse_just_released(&self, button: MouseButton) -> bool {
+        self.mouse_just_released.contains(&button)
+    }
+
+    #[inline]
+    pub fn mouse_delta(&self) -> Option<MousePosition> {
         self.mouse_delta
     }
 

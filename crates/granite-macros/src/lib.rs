@@ -27,6 +27,12 @@ pub fn uniform_buffer(attr: TokenStream, item: TokenStream) -> TokenStream {
 }
 
 #[proc_macro_attribute]
+pub fn storage_buffer_element(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(item as DeriveInput);
+    expand_storage_buffer_element_attribute(input).into()
+}
+
+#[proc_macro_attribute]
 pub fn vertex_buffer(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as DeriveInput);
     expand_buffer_layout_attribute(input, LayoutTarget::Vertex).into()
@@ -81,6 +87,16 @@ fn expand_uniform_buffer_attribute(
     input
         .attrs
         .push(parse_quote!(#[uniform_visibility(#visibility)]));
+
+    quote! {
+        #input
+    }
+}
+
+fn expand_storage_buffer_element_attribute(
+    mut input: DeriveInput,
+) -> proc_macro2::TokenStream {
+    ensure_shader_type_derive(&mut input);
 
     quote! {
         #input
