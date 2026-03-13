@@ -13,7 +13,7 @@ impl DrawListRenderer {
     }
 
     /// Executes all commands in a draw list into the provided frame.
-    pub fn submit_draw_list(&mut self, frame_context: FrameContext<'_>, draw_list: DrawList) {
+    pub fn submit_draw_list(&mut self, frame_context: FrameContext<'_>, draw_list: &DrawList) {
         let DrawList { commands } = draw_list;
         let mut frame_instance_buffers: Vec<wgpu::Buffer> = Vec::new();
         let mut encoder = self

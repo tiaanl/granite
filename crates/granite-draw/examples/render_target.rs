@@ -159,7 +159,7 @@ impl Scene for PostProcess {
                 UVec2::from(frame.surface_size),
                 frame.surface_format,
             ),
-            draw_list,
+            &draw_list,
         );
     }
 }

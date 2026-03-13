@@ -187,7 +187,7 @@ impl granite::scene::Scene for DepthExample {
 
         self.draw_list_renderer.submit_draw_list(
             FrameContext::new(&frame.view, surface_size, frame.surface_format),
-            draw_list,
+            &draw_list,
         );
     }
 }
