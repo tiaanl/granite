@@ -133,8 +133,8 @@ impl DepthExample {
         let material = draw_list_renderer
             .create_material_from_shader("main", SHADER)
             .depth_buffer(depth_buffer, DepthCompare::LessEqual)
-            .uniform(0, 0, camera)
-            .build();
+            .uniform(0, 0, camera);
+        let material = draw_list_renderer.create_material(material);
 
         let balls = (0..20)
             .map(|_| Ball {

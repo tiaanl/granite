@@ -3,7 +3,7 @@ use wgpu::{self, util::DeviceExt};
 
 use crate::{
     AsStorageBufferElement, AsUniformBuffer, BindGroupBindingResourceKey, BlendMode, DepthBufferId,
-    DepthCompare, DrawListRenderer, FragmentShaderId, FrameContext, MaterialBuilder,
+    DepthCompare, DrawListRenderer, FragmentShaderId, FrameContext, Material,
     MaterialDepthState, MaterialId, MaterialRecord, MeshId, RenderTargetId, SamplerId,
     ShaderModuleId, ShaderVisibility, StorageBufferId, StorageBufferRecord, TextureId, UniformId,
     UniformRecord, VertexShaderId,
@@ -63,11 +63,11 @@ impl FragmentShader {
 }
 
 impl DrawListRenderer {
-    /// Creates a material builder directly from WGSL source.
+    /// Creates a [`Material`] directly from WGSL source.
     ///
     /// Leaves both entry points unspecified, so the shader's only `@vertex`
     /// and `@fragment` entry points are used automatically.
-    pub fn create_material_from_shader(&mut self, name: &str, source: &str) -> MaterialBuilder<'_> {
+    pub fn create_material_from_shader(&mut self, name: &str, source: &str) -> Material {
         let shader = self.create_shader(name, source);
         let vertex_shader = self
             .vertex_shaders
@@ -75,7 +75,7 @@ impl DrawListRenderer {
         let fragment_shader = self
             .fragment_shaders
             .push(FragmentShader::create(shader, Option::<String>::None));
-        self.create_material(vertex_shader, fragment_shader)
+        Material::new(vertex_shader, fragment_shader)
     }
 
     /// Creates a new depth buffer that can be attached by materials during drawing.
@@ -357,29 +357,14 @@ impl DrawListRenderer {
         self.fragment_shaders.push(fragment_shader)
     }
 
-    /// Starts building a material for the provided vertex/fragment shaders.
-    pub fn create_material(
-        &mut self,
-        vertex_shader: VertexShaderId,
-        fragment_shader: FragmentShaderId,
-    ) -> MaterialBuilder<'_> {
-        MaterialBuilder::new(self, vertex_shader, fragment_shader)
-    }
-
-    fn insert_material(
-        &mut self,
-        vertex_shader: VertexShaderId,
-        fragment_shader: FragmentShaderId,
-        bindings: &[DrawBinding],
-        blend_mode: BlendMode,
-        depth_state: Option<MaterialDepthState>,
-    ) -> MaterialId {
+    /// Registers a material and returns its handle.
+    pub fn create_material(&mut self, material: Material) -> MaterialId {
         self.materials.push(MaterialRecord {
-            vertex_shader,
-            fragment_shader,
-            bindings: bindings.to_vec(),
-            blend_mode,
-            depth_state,
+            vertex_shader: material.vertex_shader,
+            fragment_shader: material.fragment_shader,
+            bindings: material.bindings,
+            blend_mode: material.blend_mode,
+            depth_state: material.depth_state,
         })
     }
 
@@ -796,14 +781,10 @@ impl DrawListRenderer {
     }
 }
 
-impl<'a> MaterialBuilder<'a> {
-    fn new(
-        renderer: &'a mut DrawListRenderer,
-        vertex_shader: VertexShaderId,
-        fragment_shader: FragmentShaderId,
-    ) -> Self {
+impl Material {
+    /// Creates a new material for the given vertex and fragment shaders.
+    pub fn new(vertex_shader: VertexShaderId, fragment_shader: FragmentShaderId) -> Self {
         Self {
-            renderer,
             vertex_shader,
             fragment_shader,
             bindings: Vec::new(),
@@ -887,24 +868,5 @@ impl<'a> MaterialBuilder<'a> {
             write_enabled,
         });
         self
-    }
-
-    /// Finalizes and stores the material, returning its handle.
-    pub fn build(self) -> MaterialId {
-        let Self {
-            renderer,
-            vertex_shader,
-            fragment_shader,
-            bindings,
-            blend_mode,
-            depth_state,
-        } = self;
-        renderer.insert_material(
-            vertex_shader,
-            fragment_shader,
-            bindings.as_slice(),
-            blend_mode,
-            depth_state,
-        )
     }
 }

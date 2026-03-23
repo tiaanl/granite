@@ -98,12 +98,11 @@ impl TerrainExample {
             let vertex_shader = draw_list_renderer.create_vertex_shader(shader, "vertex");
             let fragment_shader = draw_list_renderer.create_fragment_shader(shader, "fragment");
 
-            draw_list_renderer
-                .create_material(vertex_shader, fragment_shader)
+            let material = granite_draw::Material::new(vertex_shader, fragment_shader)
                 .depth_buffer(depth_buffer, granite_draw::DepthCompare::GreaterEqual)
                 .uniform(0, 0, camera_uniform)
-                .storage_buffer(0, 1, height_map_buffer, ShaderVisibility::Vertex)
-                .build()
+                .storage_buffer(0, 1, height_map_buffer, ShaderVisibility::Vertex);
+            draw_list_renderer.create_material(material)
         };
 
         let chunk_instances: Vec<ChunkInstance> = (0..16)

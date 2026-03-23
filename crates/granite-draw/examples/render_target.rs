@@ -112,8 +112,8 @@ impl SceneBuilder for PostProcessBuilder {
         let scene_mesh = draw_list_renderer.create_mesh("triangle", vertices, &[0, 1, 2]);
         let scene_material = draw_list_renderer
             .create_material_from_shader("scene", SCENE_SHADER)
-            .blend_mode(BlendMode::Opaque)
-            .build();
+            .blend_mode(BlendMode::Opaque);
+        let scene_material = draw_list_renderer.create_material(scene_material);
 
         // Pass 2 — fullscreen grayscale blit
         let sampler = draw_list_renderer.create_sampler(
@@ -125,8 +125,8 @@ impl SceneBuilder for PostProcessBuilder {
             .create_material_from_shader("post", POST_SHADER)
             .render_target_texture(0, 0, render_target)
             .sampler(0, 1, sampler)
-            .blend_mode(BlendMode::Opaque)
-            .build();
+            .blend_mode(BlendMode::Opaque);
+        let post_material = draw_list_renderer.create_material(post_material);
 
         PostProcess {
             draw_list_renderer,

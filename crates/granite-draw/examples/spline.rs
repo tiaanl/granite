@@ -118,8 +118,8 @@ impl SceneBuilder for SplineBuilder {
 
         let material = draw_list_renderer
             .create_material_from_shader("spline", SHADER)
-            .uniform(0, 0, projection_uniform)
-            .build();
+            .uniform(0, 0, projection_uniform);
+        let material = draw_list_renderer.create_material(material);
 
         Spline {
             draw_list_renderer,

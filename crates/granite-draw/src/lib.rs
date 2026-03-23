@@ -128,14 +128,16 @@ struct PipelineLayoutKey {
 }
 
 #[must_use]
-/// Fluent material builder for adding uniform/storage/texture/sampler bindings.
-pub struct MaterialBuilder<'a> {
-    renderer: &'a mut DrawListRenderer,
-    vertex_shader: VertexShaderId,
-    fragment_shader: FragmentShaderId,
-    bindings: Vec<bindings::DrawBinding>,
-    blend_mode: BlendMode,
-    depth_state: Option<MaterialDepthState>,
+/// Describes a material's shaders, bindings, blending, and depth state.
+///
+/// Build with [`Material::new`] and fluent setters, then register via
+/// [`DrawListRenderer::create_material`].
+pub struct Material {
+    pub(crate) vertex_shader: VertexShaderId,
+    pub(crate) fragment_shader: FragmentShaderId,
+    pub(crate) bindings: Vec<bindings::DrawBinding>,
+    pub(crate) blend_mode: BlendMode,
+    pub(crate) depth_state: Option<MaterialDepthState>,
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
