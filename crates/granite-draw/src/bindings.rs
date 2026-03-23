@@ -39,17 +39,7 @@ impl DrawBinding {
     }
 
     /// Creates a storage buffer binding descriptor with fragment visibility.
-    pub fn storage_buffer(group: u32, binding: u32, storage_buffer: StorageBufferId) -> Self {
-        Self::storage_buffer_with_visibility(
-            group,
-            binding,
-            storage_buffer,
-            ShaderVisibility::Fragment,
-        )
-    }
-
-    /// Creates a storage buffer binding descriptor with explicit visibility.
-    pub fn storage_buffer_with_visibility(
+    pub fn storage_buffer(
         group: u32,
         binding: u32,
         storage_buffer: StorageBufferId,

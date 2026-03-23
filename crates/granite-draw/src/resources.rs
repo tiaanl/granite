@@ -823,19 +823,14 @@ impl<'a> MaterialBuilder<'a> {
     }
 
     /// Adds a storage buffer binding at `@group(group) @binding(binding)`.
-    pub fn storage_buffer(self, group: u32, binding: u32, storage_buffer: StorageBufferId) -> Self {
-        self.push_binding(DrawBinding::storage_buffer(group, binding, storage_buffer))
-    }
-
-    /// Adds a storage buffer binding with explicit visibility.
-    pub fn storage_buffer_with_visibility(
+    pub fn storage_buffer(
         self,
         group: u32,
         binding: u32,
         storage_buffer: StorageBufferId,
         visibility: ShaderVisibility,
     ) -> Self {
-        self.push_binding(DrawBinding::storage_buffer_with_visibility(
+        self.push_binding(DrawBinding::storage_buffer(
             group,
             binding,
             storage_buffer,
