@@ -4,11 +4,7 @@
 //! Pass 1: colored triangle → offscreen render target (RenderTarget::Custom)
 //! Pass 2: fullscreen blit of render target → surface (RenderTarget::Surface)
 use glam::{UVec2, Vec4};
-use gpup::{
-    app::SceneBuilder,
-    renderer::{Frame, Renderer},
-    scene::Scene,
-};
+use gpup::{Frame, Renderer, Scene, SceneBuilder};
 use gpup_draw::{
     BlendMode, DrawListRenderer, FrameContext, MaterialId, MeshId, RenderTargetId,
     draw_list::{DrawList, RenderTarget},
@@ -160,6 +156,6 @@ impl Scene for PostProcess {
     }
 }
 
-fn main() {
-    gpup::run(PostProcessBuilder);
+fn main() -> Result<(), gpup::RunError> {
+    gpup::run(PostProcessBuilder)
 }

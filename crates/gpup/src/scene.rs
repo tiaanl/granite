@@ -1,10 +1,14 @@
 use crate::{
-    WindowEvent,
+    InputEvent, SystemEvent,
     renderer::{Frame, Renderer},
 };
 
 pub trait Scene {
-    fn window_event(&mut self, event: &WindowEvent) {
+    fn system_event(&mut self, event: &SystemEvent) {
+        let _ = event;
+    }
+
+    fn input(&mut self, event: &InputEvent) {
         let _ = event;
     }
 

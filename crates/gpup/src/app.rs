@@ -8,7 +8,7 @@ use winit::{
     window::{Window, WindowAttributes, WindowId},
 };
 
-use crate::{RunError, renderer::Renderer, scene::Scene};
+use crate::{InputEvent, RunError, SystemEvent, renderer::Renderer, scene::Scene};
 
 pub trait SceneBuilder {
     type Scene: Scene;
@@ -171,7 +171,13 @@ where
             return;
         }
 
-        scene.window_event(&event);
+        if let Some(input_event) = InputEvent::from_window_event(&event) {
+            scene.input(&input_event);
+        }
+
+        if let Some(system_event) = SystemEvent::from_window_event(&event) {
+            scene.system_event(&system_event);
+        }
 
         match event {
             WindowEvent::CloseRequested => {

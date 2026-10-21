@@ -19,7 +19,7 @@ struct TerrainExample {
 }
 
 impl TerrainExample {
-    pub fn new(renderer: &mut gpup::renderer::Renderer) -> Self {
+    pub fn new(renderer: &mut gpup::Renderer) -> Self {
         let mut draw_list_renderer =
             DrawListRenderer::new(renderer.device().clone(), renderer.queue().clone());
 
@@ -149,14 +149,14 @@ impl Camera {
     }
 }
 
-impl gpup::scene::Scene for TerrainExample {
-    fn window_event(&mut self, event: &gpup::WindowEvent) {
-        if let gpup::WindowEvent::Resized(size) = event {
-            self.new_size = Some(UVec2::new(size.width, size.height));
+impl gpup::Scene for TerrainExample {
+    fn system_event(&mut self, event: &gpup::SystemEvent) {
+        if let gpup::SystemEvent::Resized { width, height } = event {
+            self.new_size = Some(UVec2::new(*width, *height));
         }
     }
 
-    fn frame(&mut self, _renderer: &gpup::renderer::Renderer, frame: &gpup::renderer::Frame) {
+    fn frame(&mut self, _renderer: &gpup::Renderer, frame: &gpup::Frame) {
         let mut draw_list = DrawList::default();
 
         if let Some(new_size) = self.new_size.take() {
@@ -183,6 +183,6 @@ impl gpup::scene::Scene for TerrainExample {
     }
 }
 
-fn main() {
-    gpup::run(TerrainExample::new);
+fn main() -> Result<(), gpup::RunError> {
+    gpup::run(TerrainExample::new)
 }

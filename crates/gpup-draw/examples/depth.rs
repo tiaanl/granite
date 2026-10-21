@@ -1,8 +1,7 @@
 use std::f32::consts::{PI, TAU};
 
 use glam::{Mat4, UVec2, Vec3};
-use gpup::prelude::*;
-use gpup::renderer::Renderer;
+use gpup::{Frame, Renderer, Scene, SystemEvent};
 use gpup_draw::{
     DepthBufferId, DepthCompare, DrawListRenderer, FrameContext, MaterialId, MeshId, UniformId,
     depth_buffer::DepthBufferSize,
@@ -163,9 +162,9 @@ impl DepthExample {
 }
 
 impl Scene for DepthExample {
-    fn window_event(&mut self, event: &WindowEvent) {
-        if let WindowEvent::Resized(size) = event {
-            self.new_size = Some(UVec2::new(size.width, size.height));
+    fn system_event(&mut self, event: &SystemEvent) {
+        if let SystemEvent::Resized { width, height } = event {
+            self.new_size = Some(UVec2::new(*width, *height));
         }
     }
 
@@ -188,8 +187,8 @@ impl Scene for DepthExample {
     }
 }
 
-fn main() {
-    gpup::run(|renderer: &mut Renderer| DepthExample::new(renderer));
+fn main() -> Result<(), gpup::RunError> {
+    gpup::run(|renderer: &mut Renderer| DepthExample::new(renderer))
 }
 
 fn create_sphere_mesh(

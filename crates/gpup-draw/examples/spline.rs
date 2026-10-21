@@ -1,10 +1,5 @@
 use glam::{Mat4, UVec2, Vec2};
-use gpup::{
-    WindowEvent,
-    app::SceneBuilder,
-    renderer::{Frame, Renderer},
-    scene::Scene,
-};
+use gpup::{Frame, Renderer, Scene, SceneBuilder, SystemEvent};
 use gpup_draw::{
     DrawListRenderer, FrameContext, MaterialId, MeshId, UniformId,
     draw_list::{DrawList, RenderTarget},
@@ -133,11 +128,11 @@ impl SceneBuilder for SplineBuilder {
 }
 
 impl Scene for Spline {
-    fn window_event(&mut self, event: &WindowEvent) {
-        if let WindowEvent::Resized(size) = event {
+    fn system_event(&mut self, event: &SystemEvent) {
+        if let SystemEvent::Resized { width, height } = event {
             self.pending_projection = Some(ProjectionUniform::from_view(
                 self.world_size,
-                UVec2::new(size.width, size.height),
+                UVec2::new(*width, *height),
             ));
         }
     }
@@ -158,8 +153,8 @@ impl Scene for Spline {
     }
 }
 
-fn main() {
-    gpup::run(SplineBuilder);
+fn main() -> Result<(), gpup::RunError> {
+    gpup::run(SplineBuilder)
 }
 
 fn sample_catmull_rom_spline(points: &[Vec2], quality: f32) -> Vec<Vec2> {

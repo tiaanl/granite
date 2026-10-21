@@ -1,16 +1,19 @@
 mod app;
 mod input;
+mod input_state;
 mod renderer;
 mod scene;
+mod system_event;
 
 pub use app::{App, SceneBuilder};
-pub use input::InputState;
+pub use input::{InputEvent, KeyCode, MouseButton, MousePosition};
+pub use input_state::InputState;
 pub use renderer::{Frame, Renderer};
 pub use scene::Scene;
+pub use system_event::SystemEvent;
 
 // Re-export
 pub use wgpu;
-pub use winit::event::WindowEvent;
 
 /// Errors returned when starting or running an application.
 #[derive(Debug, thiserror::Error)]
