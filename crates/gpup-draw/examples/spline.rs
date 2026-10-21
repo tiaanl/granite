@@ -73,7 +73,7 @@ impl ProjectionUniform {
 }
 
 impl Spline {
-    fn new(renderer: &mut Renderer) -> Self {
+    fn new(renderer: &Renderer) -> Self {
         let mut draw_list_renderer =
             DrawListRenderer::new(renderer.device().clone(), renderer.queue().clone());
         let points = vec![

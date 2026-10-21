@@ -57,7 +57,7 @@ pub enum RunError {
 /// Returns an error if event-loop creation or execution, window creation, or
 /// renderer initialization fails.
 #[inline]
-pub fn run<S>(build_scene: impl FnOnce(&mut Renderer) -> S) -> Result<(), RunError>
+pub fn run<S>(build_scene: impl FnOnce(&Renderer) -> S) -> Result<(), RunError>
 where
     S: self::Scene,
 {

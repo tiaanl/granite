@@ -114,7 +114,7 @@ struct DepthExample {
 }
 
 impl DepthExample {
-    fn new(renderer: &mut Renderer) -> Self {
+    fn new(renderer: &Renderer) -> Self {
         let mut draw_list_renderer =
             DrawListRenderer::new(renderer.device().clone(), renderer.queue().clone());
 

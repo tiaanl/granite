@@ -18,7 +18,7 @@ use crate::{InputEvent, RunError, SurfaceSize, SystemEvent, renderer::Renderer, 
 pub(super) enum App<S, F>
 where
     S: Scene,
-    F: FnOnce(&mut Renderer) -> S,
+    F: FnOnce(&Renderer) -> S,
 {
     /// The application is in a suspended state.
     Suspended { build_scene: Option<F> },
@@ -42,7 +42,7 @@ where
 impl<S, F> App<S, F>
 where
     S: Scene,
-    F: FnOnce(&mut Renderer) -> S,
+    F: FnOnce(&Renderer) -> S,
 {
     fn can_render(&self) -> bool {
         let Self::Resumed {
@@ -60,7 +60,7 @@ where
 impl<S, F> ApplicationHandler for App<S, F>
 where
     S: Scene,
-    F: FnOnce(&mut Renderer) -> S,
+    F: FnOnce(&Renderer) -> S,
 {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         let App::Suspended { build_scene } = self else {

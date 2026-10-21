@@ -19,7 +19,7 @@ struct TerrainExample {
 }
 
 impl TerrainExample {
-    pub fn new(renderer: &mut gpup::Renderer) -> Self {
+    pub fn new(renderer: &gpup::Renderer) -> Self {
         let mut draw_list_renderer =
             DrawListRenderer::new(renderer.device().clone(), renderer.queue().clone());
 
