@@ -49,8 +49,8 @@ where
         renderer: Renderer,
         /// The [Scene] we are interacting with.
         scene: Builder::Scene,
-        /// The last [std::time::Instant] that a frame was rendered to the display.
-        last_frame_time: std::time::Instant,
+        /// The last update time, or `None` when the frame clock is paused.
+        last_frame_time: Option<std::time::Instant>,
     },
 }
 
@@ -111,12 +111,18 @@ where
             occluded: false,
             renderer,
             scene,
-            last_frame_time: std::time::Instant::now(),
+            last_frame_time: Some(std::time::Instant::now()),
         };
     }
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
         if !self.can_render() {
+            if let Self::Resumed {
+                last_frame_time, ..
+            } = self
+            {
+                *last_frame_time = None;
+            }
             event_loop.set_control_flow(ControlFlow::Wait);
             return;
         }
@@ -133,10 +139,7 @@ where
         window_id: WindowId,
         event: WindowEvent,
     ) {
-        // A redraw may already be queued when the window becomes hidden.
-        if matches!(event, WindowEvent::RedrawRequested) && !self.can_render() {
-            return;
-        }
+        let can_render = self.can_render();
 
         let Self::Resumed {
             window,
@@ -156,6 +159,12 @@ where
             return;
         }
 
+        // A redraw may already be queued when the window becomes hidden.
+        if matches!(event, WindowEvent::RedrawRequested) && !can_render {
+            *last_frame_time = None;
+            return;
+        }
+
         scene.window_event(&event);
 
         match event {
@@ -165,17 +174,25 @@ where
 
             WindowEvent::Occluded(value) => {
                 *occluded = value;
+                if value {
+                    *last_frame_time = None;
+                }
             }
 
             WindowEvent::Resized(PhysicalSize { width, height }) => {
                 renderer.resize(width, height);
+                if width == 0 || height == 0 {
+                    *last_frame_time = None;
+                }
             }
 
             WindowEvent::RedrawRequested => {
-                // The amount of seconds elapsed since the last frame was presented.
-                let now = std::time::Instant::now();
-                let delta_time = (now - *last_frame_time).as_secs_f32();
-                *last_frame_time = now;
+                let delta_time = {
+                    let now = std::time::Instant::now();
+                    last_frame_time
+                        .replace(now)
+                        .map_or(0.0, |previous| now.duration_since(previous).as_secs_f32())
+                };
 
                 scene.update(delta_time);
 

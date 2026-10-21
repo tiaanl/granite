@@ -32,6 +32,9 @@ impl std::ops::Sub for MousePosition {
     }
 }
 
+// Conversion for consistent wheel and touchpad scrolling.
+const SCROLL_PIXELS_PER_LINE: f64 = 40.0;
+
 #[derive(Clone, Default)]
 pub struct InputState {
     key_pressed: HashSet<KeyCode>,
@@ -58,16 +61,21 @@ impl InputState {
                 self.mouse_delta = None;
             }
 
-            WindowEvent::KeyboardInput { event, .. } => {
-                if let PhysicalKey::Code(key) = event.physical_key
-                    && !event.repeat
-                {
-                    if event.state == ElementState::Pressed {
-                        self.key_pressed.insert(key);
+            WindowEvent::KeyboardInput {
+                event,
+                is_synthetic,
+                ..
+            } => {
+                let PhysicalKey::Code(key) = event.physical_key else {
+                    return;
+                };
+                if event.state == ElementState::Pressed {
+                    let newly_pressed = self.key_pressed.insert(key);
+                    if newly_pressed && !event.repeat && !is_synthetic {
                         self.key_just_pressed.insert(key);
-                    } else {
-                        self.key_pressed.remove(&key);
                     }
+                } else {
+                    self.key_pressed.remove(&key);
                 }
             }
 
@@ -84,16 +92,23 @@ impl InputState {
             WindowEvent::CursorMoved { position, .. } => {
                 let current =
                     MousePosition::from_xy(position.x.round() as i32, position.y.round() as i32);
-                self.mouse_delta = self.last_mouse_position.map(|pos| current - pos);
+                if let Some(previous) = self.last_mouse_position {
+                    let movement = current - previous;
+                    let accumulated = self.mouse_delta.get_or_insert_with(MousePosition::default);
+                    accumulated.x += movement.x;
+                    accumulated.y += movement.y;
+                }
                 self.last_mouse_position = Some(current);
             }
 
-            WindowEvent::MouseWheel { delta, .. } => {
-                self.mouse_wheel_delta = match delta {
-                    MouseScrollDelta::LineDelta(_, y) => *y,
-                    MouseScrollDelta::PixelDelta(physical_position) => physical_position.y as f32,
+            WindowEvent::MouseWheel { delta, .. } => match delta {
+                MouseScrollDelta::LineDelta(_, vertical) => {
+                    self.mouse_wheel_delta += vertical;
                 }
-            }
+                MouseScrollDelta::PixelDelta(position) => {
+                    self.mouse_wheel_delta += (position.y / SCROLL_PIXELS_PER_LINE) as f32;
+                }
+            },
 
             _ => {}
         }
