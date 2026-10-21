@@ -4,4 +4,4 @@ members = ["crates/gpup", "crates/gpup-draw", "crates/gpup-macros"]
 
 [workspace.dependencies]
 tracing = "0.1"
-wgpu = "27.0"
+wgpu = "30.0"

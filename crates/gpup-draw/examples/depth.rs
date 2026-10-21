@@ -174,7 +174,7 @@ impl gpup::scene::Scene for DepthExample {
         frame: &gpup::renderer::Frame,
         _delta_time: f32,
     ) {
-        let surface_size = UVec2::from(frame.surface_size);
+        let surface_size = UVec2::from(frame.size);
 
         let mut draw_list = DrawList::default();
 
@@ -186,7 +186,7 @@ impl gpup::scene::Scene for DepthExample {
         draw_list.draw_mesh_instanced(RenderTarget::Surface, self.mesh, self.material, &self.balls);
 
         self.draw_list_renderer.submit_draw_list(
-            FrameContext::new(&frame.view, surface_size, frame.surface_format),
+            FrameContext::new(&frame.view, surface_size, frame.format),
             &draw_list,
         );
     }

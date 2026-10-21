@@ -11,9 +11,9 @@ use winit::{
 use crate::{renderer::Renderer, scene::Scene};
 
 pub trait SceneBuilder {
-    type Target: Scene;
+    type Scene: Scene;
 
-    fn build(self, renderer: &mut Renderer) -> Self::Target;
+    fn build(self, renderer: &mut Renderer) -> Self::Scene;
 }
 
 impl<T, F> SceneBuilder for F
@@ -21,9 +21,9 @@ where
     T: Scene,
     F: for<'a> FnOnce(&'a mut Renderer) -> T,
 {
-    type Target = T;
+    type Scene = T;
 
-    fn build(self, renderer: &mut Renderer) -> Self::Target {
+    fn build(self, renderer: &mut Renderer) -> Self::Scene {
         self(renderer)
     }
 }
@@ -46,7 +46,7 @@ where
         /// The renderer.
         renderer: Renderer,
         /// The [Scene] we are interacting with.
-        scene: Builder::Target,
+        scene: Builder::Scene,
         /// The last [std::time::Instant] that a frame was rendered to the display.
         last_frame_time: std::time::Instant,
     },
@@ -69,10 +69,16 @@ where
                 .unwrap(),
         );
 
-        let PhysicalSize { width, height } = window.inner_size();
+        let mut renderer = match Renderer::new(Arc::clone(&window)) {
+            Ok(renderer) => renderer,
+            Err(err) => {
+                tracing::error!("Could not create renderer. {err}");
+                event_loop.exit();
+                return;
+            }
+        };
 
-        let mut renderer =
-            Renderer::new(Arc::clone(&window), width, height).expect("Could not create renderer");
+        // Build the scene with the initialized renderer.
         let scene = builder.build(&mut renderer);
 
         *self = Self::Resumed {
@@ -123,16 +129,24 @@ where
                 let delta_time = (now - *last_frame_time).as_secs_f32();
                 *last_frame_time = now;
 
-                {
-                    let frame = renderer.begin_frame().expect("Could not begin frame");
-                    scene.frame(renderer, &frame, delta_time);
-                    renderer.submit_frame(frame);
-                }
+                scene.update(delta_time);
+
+                match renderer.next_frame() {
+                    Ok(Some(frame)) => {
+                        scene.frame(renderer, &frame);
+                        renderer.present(frame);
+                    }
+                    Ok(None) => {
+                        // Skipping frame.
+                    }
+                    Err(err) => {
+                        tracing::warn!("Could not acquire next frame! {err}");
+                        return;
+                    }
+                };
 
                 window.request_redraw();
             }
-
-            WindowEvent::Occluded(_) => {}
 
             _ => {}
         }

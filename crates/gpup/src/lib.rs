@@ -3,6 +3,13 @@ pub mod input;
 pub mod renderer;
 pub mod scene;
 
+pub mod prelude {
+    pub use super::app::{App, SceneBuilder};
+    pub use super::input::InputState;
+    pub use super::renderer::{Frame, Renderer};
+    pub use super::scene::Scene;
+}
+
 // Re-export
 pub use wgpu;
 pub use winit::event::WindowEvent;

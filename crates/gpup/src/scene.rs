@@ -8,5 +8,9 @@ pub trait Scene {
         let _ = event;
     }
 
-    fn frame(&mut self, renderer: &Renderer, frame: &Frame, delta_time: f32);
+    fn update(&mut self, delta_time: f32) {
+        let _ = delta_time;
+    }
+
+    fn frame(&mut self, renderer: &Renderer, frame: &Frame);
 }

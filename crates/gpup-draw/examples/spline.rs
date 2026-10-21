@@ -80,9 +80,9 @@ impl ProjectionUniform {
 }
 
 impl SceneBuilder for SplineBuilder {
-    type Target = Spline;
+    type Scene = Spline;
 
-    fn build(self, renderer: &mut Renderer) -> Self::Target {
+    fn build(self, renderer: &mut Renderer) -> Self::Scene {
         let mut draw_list_renderer =
             DrawListRenderer::new(renderer.device.clone(), renderer.queue.clone());
         let points = vec![
@@ -152,11 +152,7 @@ impl Scene for Spline {
         let instances = [Instance { offset: Vec2::ZERO }];
         draw_list.draw_mesh_instanced(RenderTarget::Surface, self.mesh, self.material, &instances);
         self.draw_list_renderer.submit_draw_list(
-            FrameContext::new(
-                &frame.view,
-                UVec2::from(frame.surface_size),
-                frame.surface_format,
-            ),
+            FrameContext::new(&frame.view, UVec2::from(frame.size), frame.format),
             &draw_list,
         );
     }

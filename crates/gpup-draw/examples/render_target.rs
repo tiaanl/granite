@@ -82,9 +82,9 @@ struct PostProcess {
 }
 
 impl SceneBuilder for PostProcessBuilder {
-    type Target = PostProcess;
+    type Scene = PostProcess;
 
-    fn build(self, renderer: &mut Renderer) -> Self::Target {
+    fn build(self, renderer: &mut Renderer) -> Self::Scene {
         let mut draw_list_renderer =
             DrawListRenderer::new(renderer.device.clone(), renderer.queue.clone());
         // Offscreen target that automatically matches and tracks the surface resolution.
@@ -154,11 +154,7 @@ impl Scene for PostProcess {
         draw_list.draw(RenderTarget::Surface, self.post_material, 3);
 
         self.draw_list_renderer.submit_draw_list(
-            FrameContext::new(
-                &frame.view,
-                UVec2::from(frame.surface_size),
-                frame.surface_format,
-            ),
+            FrameContext::new(&frame.view, UVec2::from(frame.size), frame.format),
             &draw_list,
         );
     }

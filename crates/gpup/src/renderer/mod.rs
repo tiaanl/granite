@@ -19,7 +19,7 @@ mod frame;
 pub enum RendererCreateError {
     /// Could not create a surface for the window.
     #[error("Could not create the window render surface! ({0})")]
-    CreateSurface(String),
+    CreateSurface(#[from] wgpu::CreateSurfaceError),
 
     /// Could not determine a valid surface configuration.
     #[error("The window surface configuration could not be determined!")]
@@ -27,136 +27,167 @@ pub enum RendererCreateError {
 
     /// Could not acquire a compatible graphics adapter.
     #[error("Could not request a graphics adapter! ({0})")]
-    RequestAdapter(String),
+    RequestAdapter(#[from] wgpu::RequestAdapterError),
 
     /// Could not create a logical device and queue.
     #[error("Could not request a device and queue from the adapter! ({0})")]
-    RequestDevice(String),
+    RequestDevice(#[from] wgpu::RequestDeviceError),
 }
 
 #[derive(Debug, Error)]
 /// Errors that can happen while submitting a frame.
-pub enum SubmitFrameError {
+pub enum NextFrameError {
     /// Could not acquire the current swapchain frame.
     #[error("Could not acquire the current frame from the render surface! ({0})")]
     AcquireCurrentFrame(String),
+
+    #[error("Could not recreate the surface! ({0})")]
+    CreateSurfaceError(#[from] wgpu::CreateSurfaceError),
+
+    #[error("Surface validation error!")]
+    ValidationError,
 }
 
 /// Low-level renderer that owns the window surface and exposes `wgpu` state.
 pub struct Renderer {
-    pub _adapter: wgpu::Adapter,
-    pub device: wgpu::Device,
-    pub queue: wgpu::Queue,
-
     surface: wgpu::Surface<'static>,
     surface_config: wgpu::SurfaceConfiguration,
+    instance: wgpu::Instance,
+    window: Arc<Window>,
+    needs_reconfigure: bool,
+
+    device: wgpu::Device,
+    queue: wgpu::Queue,
 }
 
 impl Renderer {
-    /// Creates a new renderer for a window and initial surface size.
-    pub fn new(window: Arc<Window>, width: u32, height: u32) -> Result<Self, RendererCreateError> {
+    pub fn new(window: Arc<Window>) -> Result<Self, RendererCreateError> {
         let instance = wgpu::Instance::default();
 
-        let surface = instance
-            .create_surface(window)
-            .map_err(|error| RendererCreateError::CreateSurface(error.to_string()))?;
+        let winit::dpi::PhysicalSize { width, height } = window.inner_size();
+
+        let surface = instance.create_surface(Arc::clone(&window))?;
 
         let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
             compatible_surface: Some(&surface),
             ..Default::default()
-        }))
-        .map_err(|error| RendererCreateError::RequestAdapter(error.to_string()))?;
+        }))?;
 
-        let Some(surface_config) =
-            surface.get_default_config(&adapter, width.max(1), height.max(1))
-        else {
-            return Err(RendererCreateError::DetermineConfigurtation);
-        };
+        let mut surface_config = surface
+            .get_default_config(&adapter, width, height)
+            .ok_or_else(|| RendererCreateError::DetermineConfigurtation)?;
+        surface_config.present_mode = wgpu::PresentMode::Fifo;
 
-        let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
-            required_features: wgpu::Features::TEXTURE_BINDING_ARRAY
-                | wgpu::Features::SAMPLED_TEXTURE_AND_STORAGE_BUFFER_ARRAY_NON_UNIFORM_INDEXING,
-            required_limits: wgpu::Limits {
-                max_binding_array_elements_per_shader_stage: 1024,
-                ..Default::default()
-            },
-            ..Default::default()
-        }))
-        .map_err(|error| RendererCreateError::RequestDevice(error.to_string()))?;
+        let (device, queue) =
+            pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor::default()))?;
 
-        surface.configure(&device, &surface_config);
+        if width > 0 && height > 0 {
+            surface.configure(&device, &surface_config);
+        }
 
         Ok(Self {
-            _adapter: adapter,
-            device,
-            queue,
             surface,
             surface_config,
+            instance,
+            window,
+            needs_reconfigure: false,
+            device,
+            queue,
         })
     }
 
-    /// Get the current surface size.
-    pub fn surface_size(&self) -> (u32, u32) {
-        (self.surface_config.width, self.surface_config.height)
+    #[inline]
+    pub fn device(&self) -> &wgpu::Device {
+        &self.device
     }
 
-    /// Get the format of the underlying texture.
+    #[inline]
+    pub fn queue(&self) -> &wgpu::Queue {
+        &self.queue
+    }
+
+    #[inline]
+    pub fn surface_size(&self) -> [u32; 2] {
+        [self.surface_config.width, self.surface_config.height]
+    }
+
+    #[inline]
     pub fn surface_format(&self) -> wgpu::TextureFormat {
         self.surface_config.format
     }
 
-    /// Resizes and reconfigures the surface.
     pub fn resize(&mut self, width: u32, height: u32) {
-        self.surface_config.width = width.max(1);
-        self.surface_config.height = height.max(1);
+        self.surface_config.width = width;
+        self.surface_config.height = height;
+
+        if width == 0 || height == 0 {
+            return;
+        }
 
         self.surface.configure(&self.device, &self.surface_config);
+        self.needs_reconfigure = false;
     }
 
-    /// Acquires the next surface texture for a new frame.
-    pub fn begin_frame(&mut self) -> Result<Frame, SubmitFrameError> {
-        let surface_texture = self.get_current_surface_texture()?;
-        let view = surface_texture
-            .texture
-            .create_view(&wgpu::TextureViewDescriptor::default());
+    /// Acquires the next swapchain texture, or skips the frame if unavailable.
+    pub fn next_frame(&mut self) -> Result<Option<Frame>, NextFrameError> {
+        if self.surface_config.width == 0 || self.surface_config.height == 0 {
+            return Ok(None);
+        }
 
-        Ok(Frame::new(
-            view,
-            surface_texture,
-            self.surface_size(),
-            self.surface_format(),
-        ))
-    }
-
-    /// Presents the frame after any externally submitted command buffers have completed encoding.
-    pub fn submit_frame(&self, frame: Frame) {
-        frame.present();
-    }
-
-    fn get_current_surface_texture(&mut self) -> Result<wgpu::SurfaceTexture, SubmitFrameError> {
-        match self.surface.get_current_texture() {
-            Ok(current_texture) => Ok(current_texture),
-
-            Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
-                tracing::warn!("Render surface lost or outdated, reconfiguring and retrying.");
-                self.surface.configure(&self.device, &self.surface_config);
+        // Retry recovery once, without spinning if the surface stays unavailable.
+        let surface_texture = 't: {
+            for _ in 0..2 {
+                if self.needs_reconfigure {
+                    self.surface.configure(&self.device, &self.surface_config);
+                    self.needs_reconfigure = false;
+                }
 
                 match self.surface.get_current_texture() {
-                    Ok(current_texture) => Ok(current_texture),
-
-                    Err(error) => {
-                        tracing::warn!(
-                            "Could not acquire render surface texture after reconfigure! ({error})"
-                        );
-                        Err(SubmitFrameError::AcquireCurrentFrame(error.to_string()))
+                    wgpu::CurrentSurfaceTexture::Success(texture) => {
+                        break 't Some(texture);
+                    }
+                    wgpu::CurrentSurfaceTexture::Suboptimal(texture) => {
+                        // Use this frame; configure only after the caller releases it.
+                        self.needs_reconfigure = true;
+                        break 't Some(texture);
+                    }
+                    wgpu::CurrentSurfaceTexture::Timeout
+                    | wgpu::CurrentSurfaceTexture::Occluded => {
+                        break 't None;
+                    }
+                    wgpu::CurrentSurfaceTexture::Outdated => {
+                        self.needs_reconfigure = true;
+                    }
+                    wgpu::CurrentSurfaceTexture::Lost => {
+                        self.surface = self.instance.create_surface(Arc::clone(&self.window))?;
+                        self.needs_reconfigure = true;
+                    }
+                    wgpu::CurrentSurfaceTexture::Validation => {
+                        return Err(NextFrameError::ValidationError);
                     }
                 }
             }
 
-            Err(error) => {
-                tracing::warn!("Could not acquire render surface texture! ({error})");
-                Err(SubmitFrameError::AcquireCurrentFrame(error.to_string()))
-            }
+            // Both attempts exhausted without acquiring a texture.
+            None
+        };
+
+        if let Some(surface_texture) = surface_texture {
+            let view = surface_texture
+                .texture
+                .create_view(&wgpu::TextureViewDescriptor::default());
+            let size = (self.surface_config.width, self.surface_config.height);
+            let format = self.surface_config.format;
+
+            Ok(Some(Frame::new(surface_texture, view, size, format)))
+        } else {
+            Ok(None)
         }
+    }
+
+    /// Present the given texture to the window surface.
+    pub fn present(&self, frame: Frame) {
+        self.window.pre_present_notify();
+        self.queue.present(frame.surface_texture);
     }
 }
