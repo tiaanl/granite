@@ -183,6 +183,10 @@ where
                 }
             }
 
+            WindowEvent::ScaleFactorChanged { scale_factor, .. } => {
+                renderer.set_scale_factor(scale_factor);
+            }
+
             WindowEvent::RedrawRequested => {
                 let delta_time = {
                     let now = std::time::Instant::now();

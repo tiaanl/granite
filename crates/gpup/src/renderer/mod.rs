@@ -54,6 +54,7 @@ pub enum NextFrameError {
 pub struct Renderer {
     surface: wgpu::Surface<'static>,
     surface_config: wgpu::SurfaceConfiguration,
+    scale_factor: f64,
     instance: wgpu::Instance,
     window: Arc<Window>,
     needs_reconfigure: bool,
@@ -63,10 +64,11 @@ pub struct Renderer {
 }
 
 impl Renderer {
-    pub fn new(window: Arc<Window>) -> Result<Self, RendererCreateError> {
+    pub(crate) fn new(window: Arc<Window>) -> Result<Self, RendererCreateError> {
         let instance = wgpu::Instance::default();
 
         let winit::dpi::PhysicalSize { width, height } = window.inner_size();
+        let scale_factor = window.scale_factor();
 
         let surface = instance.create_surface(Arc::clone(&window))?;
 
@@ -90,6 +92,7 @@ impl Renderer {
         Ok(Self {
             surface,
             surface_config,
+            scale_factor,
             instance,
             window,
             needs_reconfigure: false,
@@ -113,12 +116,23 @@ impl Renderer {
         SurfaceSize::new(self.surface_config.width, self.surface_config.height)
     }
 
+    /// Returns the number of physical pixels per logical pixel for the window.
+    #[inline]
+    pub fn scale_factor(&self) -> f64 {
+        self.scale_factor
+    }
+
+    /// Updates the surface scale factor after a window scale-factor change.
+    pub(crate) fn set_scale_factor(&mut self, scale_factor: f64) {
+        self.scale_factor = scale_factor;
+    }
+
     #[inline]
     pub fn surface_format(&self) -> wgpu::TextureFormat {
         self.surface_config.format
     }
 
-    pub fn resize(&mut self, size: SurfaceSize) {
+    pub(crate) fn resize(&mut self, size: SurfaceSize) {
         let SurfaceSize { width, height } = size;
 
         self.surface_config.width = width;
@@ -133,7 +147,7 @@ impl Renderer {
     }
 
     /// Acquires the next swapchain texture, or skips the frame if unavailable.
-    pub fn next_frame(&mut self) -> Result<Option<Frame>, NextFrameError> {
+    pub(crate) fn next_frame(&mut self) -> Result<Option<Frame>, NextFrameError> {
         if self.surface_config.width == 0 || self.surface_config.height == 0 {
             return Ok(None);
         }
@@ -180,17 +194,20 @@ impl Renderer {
             let view = surface_texture
                 .texture
                 .create_view(&wgpu::TextureViewDescriptor::default());
-            let size = self.surface_size();
-            let format = self.surface_config.format;
-
-            Ok(Some(Frame::new(surface_texture, view, size, format)))
+            Ok(Some(Frame::new(
+                surface_texture,
+                view,
+                self.surface_size(),
+                self.scale_factor,
+                self.surface_config.format,
+            )))
         } else {
             Ok(None)
         }
     }
 
     /// Present the given texture to the window surface.
-    pub fn present(&self, frame: Frame) {
+    pub(crate) fn present(&self, frame: Frame) {
         self.window.pre_present_notify();
         self.queue.present(frame.surface_texture);
     }

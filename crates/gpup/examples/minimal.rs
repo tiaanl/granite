@@ -35,7 +35,7 @@ struct Minimal {
 }
 
 impl Minimal {
-    fn new(renderer: &mut gpup::Renderer) -> Self {
+    fn new(renderer: &gpup::Renderer) -> Self {
         let device = renderer.device();
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
