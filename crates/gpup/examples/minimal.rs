@@ -1,5 +1,3 @@
-use gpup::prelude::*;
-
 const SHADER: &str = r"
 struct VertexOut {
     @builtin(position) clip_position: vec4<f32>,
@@ -38,10 +36,10 @@ struct Minimal {
     pipeline: wgpu::RenderPipeline,
 }
 
-impl SceneBuilder for MinimalBuilder {
+impl gpup::SceneBuilder for MinimalBuilder {
     type Scene = Minimal;
 
-    fn build(self, renderer: &mut Renderer) -> Self::Scene {
+    fn build(self, renderer: &mut gpup::Renderer) -> Self::Scene {
         let device = renderer.device();
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -84,8 +82,8 @@ impl SceneBuilder for MinimalBuilder {
     }
 }
 
-impl Scene for Minimal {
-    fn frame(&mut self, renderer: &Renderer, frame: &Frame) {
+impl gpup::Scene for Minimal {
+    fn frame(&mut self, renderer: &gpup::Renderer, frame: &gpup::Frame) {
         let device = renderer.device();
 
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {

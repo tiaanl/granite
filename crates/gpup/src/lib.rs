@@ -1,16 +1,12 @@
-pub mod app;
-pub mod input;
-pub mod renderer;
-pub mod scene;
+mod app;
+mod input;
+mod renderer;
+mod scene;
 
-pub mod prelude {
-    pub use super::RunError;
-    pub use super::WindowEvent;
-    pub use super::app::{App, SceneBuilder};
-    pub use super::input::InputState;
-    pub use super::renderer::{Frame, Renderer};
-    pub use super::scene::Scene;
-}
+pub use app::{App, SceneBuilder};
+pub use input::InputState;
+pub use renderer::{Frame, Renderer};
+pub use scene::Scene;
 
 // Re-export
 pub use wgpu;
