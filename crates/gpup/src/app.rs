@@ -10,35 +10,18 @@ use winit::{
 
 use crate::{InputEvent, RunError, SurfaceSize, SystemEvent, renderer::Renderer, scene::Scene};
 
-pub trait SceneBuilder {
-    type Scene: Scene;
-
-    fn build(self, renderer: &mut Renderer) -> Self::Scene;
-}
-
-impl<T, F> SceneBuilder for F
-where
-    T: Scene,
-    F: for<'a> FnOnce(&'a mut Renderer) -> T,
-{
-    type Scene = T;
-
-    fn build(self, renderer: &mut Renderer) -> Self::Scene {
-        self(renderer)
-    }
-}
-
 /// The global state of the engine. Implements the [ApplicationHandler] for [winit] to drive the
 /// main window.
 // Allow the clippy large_enum_variant, becuase we only have one instance of [App] and we use the
 // enum as a "initialized" flag only.
 #[allow(clippy::large_enum_variant)]
-pub(super) enum App<Builder>
+pub(super) enum App<S, F>
 where
-    Builder: SceneBuilder,
+    S: Scene,
+    F: FnOnce(&mut Renderer) -> S,
 {
     /// The application is in a suspended state.
-    Suspended { builder: Option<Builder> },
+    Suspended { build_scene: Option<F> },
     /// Startup failed; the error is retained until the event loop exits.
     Failed { error: RunError },
     /// The application was resumed and is now actively running.
@@ -50,15 +33,16 @@ where
         /// The renderer.
         renderer: Renderer,
         /// The [Scene] we are interacting with.
-        scene: Builder::Scene,
+        scene: S,
         /// The last update time, or `None` when the frame clock is paused.
         last_frame_time: Option<std::time::Instant>,
     },
 }
 
-impl<Builder> App<Builder>
+impl<S, F> App<S, F>
 where
-    Builder: SceneBuilder,
+    S: Scene,
+    F: FnOnce(&mut Renderer) -> S,
 {
     fn can_render(&self) -> bool {
         let Self::Resumed {
@@ -73,17 +57,18 @@ where
     }
 }
 
-impl<Builder> ApplicationHandler for App<Builder>
+impl<S, F> ApplicationHandler for App<S, F>
 where
-    Builder: SceneBuilder,
+    S: Scene,
+    F: FnOnce(&mut Renderer) -> S,
 {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        let App::Suspended { builder } = self else {
+        let App::Suspended { build_scene } = self else {
             // Winit may emit redundant resume callbacks.
             return;
         };
 
-        let Some(builder) = builder.take() else {
+        let Some(build_scene) = build_scene.take() else {
             return;
         };
 
@@ -110,7 +95,7 @@ where
         };
 
         // Build the scene with the initialized renderer.
-        let scene = builder.build(&mut renderer);
+        let scene = build_scene(&mut renderer);
 
         *self = Self::Resumed {
             window,

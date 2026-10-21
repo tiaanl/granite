@@ -6,7 +6,6 @@ mod scene;
 mod surface_size;
 mod system_event;
 
-pub use app::SceneBuilder;
 pub use input::{InputEvent, KeyCode, MouseButton, MousePosition};
 pub use input_state::InputState;
 pub use renderer::{Frame, NextFrameError, Renderer, RendererCreateError};
@@ -31,13 +30,26 @@ pub enum RunError {
     CreateRenderer(#[from] RendererCreateError),
 }
 
-/// Handles the main engine loop. Calls into the [scene::Scene] at significant points during the
-/// loop.
+/// Creates a window and renderer, then runs the scene's event loop until the application exits.
 ///
-/// Typical use:
-/// ```ignore
+/// ```no_run
+/// use gpup::{Frame, Renderer, Scene};
+///
+/// struct MyScene;
+///
+/// impl MyScene {
+///     fn new(renderer: &mut Renderer) -> Self {
+///         // Initialize graphics using the renderer.
+///         Self
+///     }
+/// }
+///
+/// impl Scene for MyScene {
+///     fn frame(&mut self, renderer: &Renderer, frame: &Frame) {}
+/// }
+///
 /// fn main() -> Result<(), gpup::RunError> {
-///     gpup::run(|renderer: &mut Renderer| Scene::new(renderer))
+///     gpup::run(MyScene::new)
 /// }
 /// ```
 ///
@@ -45,13 +57,13 @@ pub enum RunError {
 /// Returns an error if event-loop creation or execution, window creation, or
 /// renderer initialization fails.
 #[inline]
-pub fn run<Builder>(builder: Builder) -> Result<(), RunError>
+pub fn run<S>(build_scene: impl FnOnce(&mut Renderer) -> S) -> Result<(), RunError>
 where
-    Builder: app::SceneBuilder,
+    S: self::Scene,
 {
     let event_loop = winit::event_loop::EventLoop::new()?;
     let mut app = app::App::Suspended {
-        builder: Some(builder),
+        build_scene: Some(build_scene),
     };
     let result = event_loop.run_app(&mut app);
 

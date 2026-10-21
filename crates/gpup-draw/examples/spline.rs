@@ -1,5 +1,5 @@
 use glam::{Mat4, UVec2, Vec2};
-use gpup::{Frame, Renderer, Scene, SceneBuilder, SystemEvent};
+use gpup::{Frame, Renderer, Scene, SystemEvent};
 use gpup_draw::{
     DrawListRenderer, FrameContext, MaterialId, MeshId, UniformId,
     draw_list::{DrawList, RenderTarget},
@@ -27,8 +27,6 @@ struct VertexIn {
     return vec4<f32>(1.0, 0.0, 0.0, 1.0);
 }
 ";
-
-struct SplineBuilder;
 
 struct Spline {
     draw_list_renderer: DrawListRenderer,
@@ -74,10 +72,8 @@ impl ProjectionUniform {
     }
 }
 
-impl SceneBuilder for SplineBuilder {
-    type Scene = Spline;
-
-    fn build(self, renderer: &mut Renderer) -> Self::Scene {
+impl Spline {
+    fn new(renderer: &mut Renderer) -> Self {
         let mut draw_list_renderer =
             DrawListRenderer::new(renderer.device().clone(), renderer.queue().clone());
         let points = vec![
@@ -116,7 +112,7 @@ impl SceneBuilder for SplineBuilder {
             .uniform(0, 0, projection_uniform);
         let material = draw_list_renderer.create_material(material);
 
-        Spline {
+        Self {
             draw_list_renderer,
             mesh,
             material,
@@ -158,7 +154,7 @@ impl Scene for Spline {
 }
 
 fn main() -> Result<(), gpup::RunError> {
-    gpup::run(SplineBuilder)
+    gpup::run(Spline::new)
 }
 
 fn sample_catmull_rom_spline(points: &[Vec2], quality: f32) -> Vec<Vec2> {

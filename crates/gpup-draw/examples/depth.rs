@@ -190,7 +190,7 @@ impl Scene for DepthExample {
 }
 
 fn main() -> Result<(), gpup::RunError> {
-    gpup::run(|renderer: &mut Renderer| DepthExample::new(renderer))
+    gpup::run(DepthExample::new)
 }
 
 fn create_sphere_mesh(

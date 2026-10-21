@@ -30,16 +30,12 @@ fn fragment(in: VertexOut) -> @location(0) vec4<f32> {
 }
 ";
 
-struct MinimalBuilder;
-
 struct Minimal {
     pipeline: wgpu::RenderPipeline,
 }
 
-impl gpup::SceneBuilder for MinimalBuilder {
-    type Scene = Minimal;
-
-    fn build(self, renderer: &mut gpup::Renderer) -> Self::Scene {
+impl Minimal {
+    fn new(renderer: &mut gpup::Renderer) -> Self {
         let device = renderer.device();
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -78,7 +74,7 @@ impl gpup::SceneBuilder for MinimalBuilder {
             cache: None,
         });
 
-        Self::Scene { pipeline }
+        Self { pipeline }
     }
 }
 
@@ -113,5 +109,5 @@ impl gpup::Scene for Minimal {
 }
 
 fn main() -> Result<(), gpup::RunError> {
-    gpup::run(MinimalBuilder)
+    gpup::run(Minimal::new)
 }

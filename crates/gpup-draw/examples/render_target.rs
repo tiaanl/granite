@@ -4,7 +4,7 @@
 //! Pass 1: colored triangle → offscreen render target (RenderTarget::Custom)
 //! Pass 2: fullscreen blit of render target → surface (RenderTarget::Surface)
 use glam::{UVec2, Vec4};
-use gpup::{Frame, Renderer, Scene, SceneBuilder};
+use gpup::{Frame, Renderer, Scene};
 use gpup_draw::{
     BlendMode, DrawListRenderer, FrameContext, MaterialId, MeshId, RenderTargetId,
     draw_list::{DrawList, RenderTarget},
@@ -65,8 +65,6 @@ struct Vertex {
     color: Vec4,
 }
 
-struct PostProcessBuilder;
-
 struct PostProcess {
     draw_list_renderer: DrawListRenderer,
     // Pass 1
@@ -77,10 +75,8 @@ struct PostProcess {
     post_material: MaterialId,
 }
 
-impl SceneBuilder for PostProcessBuilder {
-    type Scene = PostProcess;
-
-    fn build(self, renderer: &mut Renderer) -> Self::Scene {
+impl PostProcess {
+    fn new(renderer: &mut Renderer) -> Self {
         let mut draw_list_renderer =
             DrawListRenderer::new(renderer.device().clone(), renderer.queue().clone());
         // Offscreen target that automatically matches and tracks the surface resolution.
@@ -124,7 +120,7 @@ impl SceneBuilder for PostProcessBuilder {
             .blend_mode(BlendMode::Opaque);
         let post_material = draw_list_renderer.create_material(post_material);
 
-        PostProcess {
+        Self {
             draw_list_renderer,
             render_target,
             scene_mesh,
@@ -161,5 +157,5 @@ impl Scene for PostProcess {
 }
 
 fn main() -> Result<(), gpup::RunError> {
-    gpup::run(PostProcessBuilder)
+    gpup::run(PostProcess::new)
 }
