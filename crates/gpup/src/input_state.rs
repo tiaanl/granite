@@ -185,7 +185,7 @@ mod tests {
                 position: PhysicalPosition::new(12.6, 20.2),
             }),
             Some(InputEvent::MouseMove {
-                position: MousePosition::from_xy(13, 20)
+                position: MousePosition::new(13, 20)
             }),
         );
         for (state, expected) in [
@@ -240,13 +240,10 @@ mod tests {
         input.handle_input_event(&InputEvent::MouseDown {
             button: MouseButton::Left,
         });
-        for position in [
-            MousePosition::from_xy(10, 20),
-            MousePosition::from_xy(15, 25),
-        ] {
+        for position in [MousePosition::new(10, 20), MousePosition::new(15, 25)] {
             input.handle_input_event(&InputEvent::MouseMove { position });
         }
-        assert_eq!(input.mouse_delta(), Some(MousePosition::from_xy(5, 5)));
+        assert_eq!(input.mouse_delta(), Some(MousePosition::new(5, 5)));
 
         input.handle_window_event(&WindowEvent::CursorLeft {
             device_id: DeviceId::dummy(),
@@ -258,17 +255,14 @@ mod tests {
         assert!(!input.mouse_just_released(MouseButton::Left));
 
         input.handle_input_event(&InputEvent::MouseMove {
-            position: MousePosition::from_xy(100, 200),
+            position: MousePosition::new(100, 200),
         });
-        assert_eq!(
-            input.mouse_position(),
-            Some(MousePosition::from_xy(100, 200))
-        );
+        assert_eq!(input.mouse_position(), Some(MousePosition::new(100, 200)));
         assert_eq!(input.mouse_delta(), None);
         input.handle_input_event(&InputEvent::MouseMove {
-            position: MousePosition::from_xy(103, 204),
+            position: MousePosition::new(103, 204),
         });
-        assert_eq!(input.mouse_delta(), Some(MousePosition::from_xy(3, 4)));
+        assert_eq!(input.mouse_delta(), Some(MousePosition::new(3, 4)));
     }
 
     #[test]
@@ -304,9 +298,9 @@ mod tests {
     fn accumulates_input_until_frame_reset_and_cancels_on_focus_loss() {
         let mut input = InputState::default();
         for position in [
-            MousePosition::from_xy(10, 20),
-            MousePosition::from_xy(14, 18),
-            MousePosition::from_xy(17, 25),
+            MousePosition::new(10, 20),
+            MousePosition::new(14, 18),
+            MousePosition::new(17, 25),
         ] {
             input.handle_input_event(&InputEvent::MouseMove { position });
         }
@@ -320,14 +314,14 @@ mod tests {
             repeat: false,
             is_synthetic: false,
         });
-        assert_eq!(input.mouse_delta(), Some(MousePosition::from_xy(7, 5)));
+        assert_eq!(input.mouse_delta(), Some(MousePosition::new(7, 5)));
         assert_eq!(input.mouse_wheel_delta(), 3.5);
         assert!(input.mouse_just_pressed(MouseButton::Left));
 
         input.reset_current_frame();
         assert_eq!(input.mouse_delta(), None);
         assert_eq!(input.mouse_wheel_delta(), 0.0);
-        assert_eq!(input.mouse_position(), Some(MousePosition::from_xy(17, 25)));
+        assert_eq!(input.mouse_position(), Some(MousePosition::new(17, 25)));
         assert!(input.mouse_pressed(MouseButton::Left));
         assert!(!input.mouse_just_pressed(MouseButton::Left));
 

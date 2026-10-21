@@ -54,10 +54,7 @@ impl InputEvent {
                 }
             }
             WindowEvent::CursorMoved { position, .. } => Self::MouseMove {
-                position: MousePosition::from_xy(
-                    position.x.round() as i32,
-                    position.y.round() as i32,
-                ),
+                position: MousePosition::new(position.x.round() as i32, position.y.round() as i32),
             },
             WindowEvent::CursorLeft { .. } => Self::MouseLeft,
             WindowEvent::MouseInput { state, button, .. } => match state {
@@ -84,7 +81,7 @@ pub struct MousePosition {
 }
 
 impl MousePosition {
-    pub fn from_xy(x: i32, y: i32) -> Self {
+    pub fn new(x: i32, y: i32) -> Self {
         Self { x, y }
     }
 }
