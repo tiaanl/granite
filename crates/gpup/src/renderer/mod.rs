@@ -46,21 +46,28 @@ pub enum NextFrameError {
     #[error("Could not recreate the surface. {0}")]
     CreateSurfaceError(#[from] wgpu::CreateSurfaceError),
 
+    /// The recreated surface is incompatible with the current adapter.
+    #[error("The recreated window surface configuration could not be determined.")]
+    DetermineConfiguration,
+
     #[error("Surface validation error.")]
     ValidationError,
 }
 
 /// Low-level renderer that owns the window surface and exposes `wgpu` state.
 pub struct Renderer {
+    window: Arc<Window>,
+
+    instance: wgpu::Instance,
+    adapter: wgpu::Adapter,
+    device: wgpu::Device,
+    queue: wgpu::Queue,
+
     surface: wgpu::Surface<'static>,
     surface_config: wgpu::SurfaceConfiguration,
     scale_factor: f64,
-    instance: wgpu::Instance,
-    window: Arc<Window>,
-    needs_reconfigure: bool,
 
-    device: wgpu::Device,
-    queue: wgpu::Queue,
+    needs_reconfigure: bool,
 }
 
 impl Renderer {
@@ -77,10 +84,9 @@ impl Renderer {
             ..Default::default()
         }))?;
 
-        let mut surface_config = surface
-            .get_default_config(&adapter, width, height)
-            .ok_or_else(|| RendererCreateError::DetermineConfiguration)?;
-        surface_config.present_mode = wgpu::PresentMode::Fifo;
+        let surface_config =
+            Self::determine_surface_config(&surface, &adapter, SurfaceSize::new(width, height))
+                .ok_or(RendererCreateError::DetermineConfiguration)?;
 
         let (device, queue) =
             pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor::default()))?;
@@ -90,15 +96,26 @@ impl Renderer {
         }
 
         Ok(Self {
+            window,
+            instance,
+            adapter,
+            device,
+            queue,
             surface,
             surface_config,
             scale_factor,
-            instance,
-            window,
             needs_reconfigure: false,
-            device,
-            queue,
         })
+    }
+
+    fn determine_surface_config(
+        surface: &wgpu::Surface<'_>,
+        adapter: &wgpu::Adapter,
+        size: SurfaceSize,
+    ) -> Option<wgpu::SurfaceConfiguration> {
+        let mut surface_config = surface.get_default_config(adapter, size.width, size.height)?;
+        surface_config.present_mode = wgpu::PresentMode::Fifo;
+        Some(surface_config)
     }
 
     #[inline]
@@ -127,6 +144,7 @@ impl Renderer {
         self.scale_factor = scale_factor;
     }
 
+    /// Returns the current surface format, which may change after surface-loss recovery.
     #[inline]
     pub fn surface_format(&self) -> wgpu::TextureFormat {
         self.surface_config.format
@@ -177,7 +195,17 @@ impl Renderer {
                         self.needs_reconfigure = true;
                     }
                     wgpu::CurrentSurfaceTexture::Lost => {
-                        self.surface = self.instance.create_surface(Arc::clone(&self.window))?;
+                        let surface = self.instance.create_surface(Arc::clone(&self.window))?;
+                        // A recreated surface may expose different capabilities.
+                        let surface_config = Self::determine_surface_config(
+                            &surface,
+                            &self.adapter,
+                            self.surface_size(),
+                        )
+                        .ok_or(NextFrameError::DetermineConfiguration)?;
+
+                        self.surface = surface;
+                        self.surface_config = surface_config;
                         self.needs_reconfigure = true;
                     }
                     wgpu::CurrentSurfaceTexture::Validation => {
