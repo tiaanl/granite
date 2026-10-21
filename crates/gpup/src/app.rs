@@ -8,7 +8,7 @@ use winit::{
     window::{Window, WindowAttributes, WindowId},
 };
 
-use crate::{renderer::Renderer, scene::Scene};
+use crate::{RunError, renderer::Renderer, scene::Scene};
 
 pub trait SceneBuilder {
     type Scene: Scene;
@@ -39,6 +39,8 @@ where
 {
     /// The application is in a suspended state.
     Suspended { builder: Option<Builder> },
+    /// Startup failed; the error is retained until the event loop exits.
+    Failed { error: RunError },
     /// The application was resumed and is now actively running.
     Resumed {
         /// A handle to the main window running our renderer.
@@ -87,8 +89,10 @@ where
 
         let window = match event_loop.create_window(WindowAttributes::default()) {
             Ok(window) => Arc::new(window),
-            Err(err) => {
-                tracing::error!("Could not create window. {err}");
+            Err(error) => {
+                *self = Self::Failed {
+                    error: RunError::CreateWindow(error),
+                };
                 event_loop.exit();
                 return;
             }
@@ -96,8 +100,10 @@ where
 
         let mut renderer = match Renderer::new(Arc::clone(&window)) {
             Ok(renderer) => renderer,
-            Err(err) => {
-                tracing::error!("Could not create renderer. {err}");
+            Err(error) => {
+                *self = Self::Failed {
+                    error: RunError::CreateRenderer(error),
+                };
                 event_loop.exit();
                 return;
             }

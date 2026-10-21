@@ -114,6 +114,6 @@ impl Scene for Minimal {
     }
 }
 
-fn main() {
-    gpup::run(MinimalBuilder);
+fn main() -> Result<(), gpup::RunError> {
+    gpup::run(MinimalBuilder)
 }
