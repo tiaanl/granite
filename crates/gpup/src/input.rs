@@ -47,6 +47,17 @@ pub struct InputState {
 impl InputState {
     pub fn handle_window_event(&mut self, event: &WindowEvent) {
         match event {
+            WindowEvent::Focused(false) => {
+                // Cancel input without generating release actions on focus loss.
+                *self = Self::default();
+            }
+
+            WindowEvent::CursorLeft { .. } => {
+                // Keep held inputs intact so dragging can continue outside the window.
+                self.last_mouse_position = None;
+                self.mouse_delta = None;
+            }
+
             WindowEvent::KeyboardInput { event, .. } => {
                 if let PhysicalKey::Code(key) = event.physical_key
                     && !event.repeat
