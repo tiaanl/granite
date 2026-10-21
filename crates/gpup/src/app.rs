@@ -4,7 +4,7 @@ use winit::{
     application::ApplicationHandler,
     dpi::PhysicalSize,
     event::WindowEvent,
-    event_loop::ActiveEventLoop,
+    event_loop::{ActiveEventLoop, ControlFlow},
     window::{Window, WindowAttributes, WindowId},
 };
 
@@ -43,6 +43,8 @@ where
     Resumed {
         /// A handle to the main window running our renderer.
         window: Arc<Window>,
+        /// Whether the window is completely hidden from view.
+        occluded: bool,
         /// The renderer.
         renderer: Renderer,
         /// The [Scene] we are interacting with.
@@ -50,6 +52,23 @@ where
         /// The last [std::time::Instant] that a frame was rendered to the display.
         last_frame_time: std::time::Instant,
     },
+}
+
+impl<Builder> App<Builder>
+where
+    Builder: SceneBuilder,
+{
+    fn can_render(&self) -> bool {
+        let Self::Resumed {
+            window, occluded, ..
+        } = self
+        else {
+            return false;
+        };
+
+        let size = window.inner_size();
+        !occluded && size.width > 0 && size.height > 0 && window.is_minimized() != Some(true)
+    }
 }
 
 impl<Builder> ApplicationHandler for App<Builder>
@@ -83,10 +102,23 @@ where
 
         *self = Self::Resumed {
             window,
+            occluded: false,
             renderer,
             scene,
             last_frame_time: std::time::Instant::now(),
         };
+    }
+
+    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        if !self.can_render() {
+            event_loop.set_control_flow(ControlFlow::Wait);
+            return;
+        }
+
+        event_loop.set_control_flow(ControlFlow::Poll);
+        if let Self::Resumed { window, .. } = self {
+            window.request_redraw();
+        }
     }
 
     fn window_event(
@@ -95,8 +127,14 @@ where
         window_id: WindowId,
         event: WindowEvent,
     ) {
+        // A redraw may already be queued when the window becomes hidden.
+        if matches!(event, WindowEvent::RedrawRequested) && !self.can_render() {
+            return;
+        }
+
         let Self::Resumed {
             window,
+            occluded,
             renderer,
             scene,
             last_frame_time,
@@ -117,6 +155,10 @@ where
         match event {
             WindowEvent::CloseRequested => {
                 event_loop.exit();
+            }
+
+            WindowEvent::Occluded(value) => {
+                *occluded = value;
             }
 
             WindowEvent::Resized(PhysicalSize { width, height }) => {
@@ -144,8 +186,6 @@ where
                         return;
                     }
                 };
-
-                window.request_redraw();
             }
 
             _ => {}
