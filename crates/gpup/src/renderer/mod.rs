@@ -3,7 +3,7 @@
 //! [`Renderer`] owns the surface and produces a [`Frame`] containing the active
 //! swapchain [`wgpu::TextureView`].
 //!
-//! For the higher-level draw-list/material layer, use the companion `granite-draw` crate.
+//! For the higher-level draw-list/material layer, use the companion `gpup-draw` crate.
 
 use std::sync::Arc;
 

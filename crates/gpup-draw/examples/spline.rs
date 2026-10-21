@@ -1,15 +1,15 @@
 use glam::{Mat4, UVec2, Vec2};
-use granite::{
+use gpup::{
     WindowEvent,
     app::SceneBuilder,
     renderer::{Frame, Renderer},
     scene::Scene,
 };
-use granite_draw::{
+use gpup_draw::{
     DrawListRenderer, FrameContext, MaterialId, MeshId, UniformId,
     draw_list::{DrawList, RenderTarget},
 };
-use granite_macros::{instance_buffer, uniform_buffer, vertex_buffer};
+use gpup_macros::{instance_buffer, uniform_buffer, vertex_buffer};
 
 const SHADER: &str = r"
 struct Uniforms {
@@ -163,7 +163,7 @@ impl Scene for Spline {
 }
 
 fn main() {
-    granite::run(SplineBuilder);
+    gpup::run(SplineBuilder);
 }
 
 fn sample_catmull_rom_spline(points: &[Vec2], quality: f32) -> Vec<Vec2> {

@@ -1,13 +1,13 @@
 use std::f32::consts::{PI, TAU};
 
 use glam::{Mat4, UVec2, Vec3};
-use granite::renderer::Renderer;
-use granite_draw::{
+use gpup::renderer::Renderer;
+use gpup_draw::{
     DepthBufferId, DepthCompare, DrawListRenderer, FrameContext, MaterialId, MeshId, UniformId,
     depth_buffer::DepthBufferSize,
     draw_list::{DrawList, RenderTarget},
 };
-use granite_macros::{instance_buffer, uniform_buffer, vertex_buffer};
+use gpup_macros::{instance_buffer, uniform_buffer, vertex_buffer};
 
 const SHADER: &str = r"
 struct VertexIn {
@@ -161,17 +161,17 @@ impl DepthExample {
     }
 }
 
-impl granite::scene::Scene for DepthExample {
-    fn window_event(&mut self, event: &granite::WindowEvent) {
-        if let granite::WindowEvent::Resized(size) = event {
+impl gpup::scene::Scene for DepthExample {
+    fn window_event(&mut self, event: &gpup::WindowEvent) {
+        if let gpup::WindowEvent::Resized(size) = event {
             self.new_size = Some(UVec2::new(size.width, size.height));
         }
     }
 
     fn frame(
         &mut self,
-        _renderer: &granite::renderer::Renderer,
-        frame: &granite::renderer::Frame,
+        _renderer: &gpup::renderer::Renderer,
+        frame: &gpup::renderer::Frame,
         _delta_time: f32,
     ) {
         let surface_size = UVec2::from(frame.surface_size);
@@ -193,7 +193,7 @@ impl granite::scene::Scene for DepthExample {
 }
 
 fn main() {
-    granite::run(|renderer: &mut Renderer| DepthExample::new(renderer));
+    gpup::run(|renderer: &mut Renderer| DepthExample::new(renderer));
 }
 
 fn create_sphere_mesh(

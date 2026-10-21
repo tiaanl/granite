@@ -12,7 +12,7 @@ use crate::{
     depth_buffer::{DepthBufferRecord, DepthBufferSize},
     draw_list::RenderTarget,
     encode_storage_buffer_elements,
-    mesh::{AsVertexBufferLayout, Mesh},
+    mesh::{AsVertexBufferLayout, Mesh, MeshBuilder},
     render_target::{RenderTargetFormat, RenderTargetRecord, RenderTargetSize},
     sampler::{SamplerAddressing, SamplerFiltering},
     storage_buffer_min_binding_size,
@@ -312,22 +312,32 @@ impl DrawListRenderer {
         });
     }
 
-    /// Creates a mesh resource and returns a stable mesh handle.
+    /// Creates a mesh resource with one typed vertex buffer and an optional `u32` index buffer.
     pub fn create_mesh<V: AsVertexBufferLayout>(
         &mut self,
         name: &str,
         vertices: &[V],
         indices: &[u32],
     ) -> MeshId {
-        let vertex_buffer_layout_id = self.get_or_create_vertex_buffer_layout(V::layout());
+        let mut builder = MeshBuilder::new().with_vertex_buffer(vertices);
+        if !indices.is_empty() {
+            builder = builder.with_index_buffer(indices);
+        }
 
-        let mesh = Mesh::create(
-            &self.device,
-            name,
-            vertex_buffer_layout_id,
-            vertices,
-            indices,
-        );
+        self.create_mesh_from_builder(name, builder)
+    }
+
+    /// Creates a mesh resource from an explicit mesh description.
+    ///
+    /// Use [`MeshBuilder`] when the mesh should own multiple vertex buffers, omit the index
+    /// buffer, or drive draws from an explicit vertex count.
+    pub fn create_mesh_from_builder(&mut self, name: &str, builder: MeshBuilder) -> MeshId {
+        let vertex_buffer_layout_ids = builder
+            .vertex_buffer_layouts()
+            .map(|layout| self.get_or_create_vertex_buffer_layout(layout))
+            .collect();
+
+        let mesh = Mesh::create(&self.device, name, builder, vertex_buffer_layout_ids);
         self.meshes.push(mesh)
     }
 

@@ -31,18 +31,18 @@ impl PreparedDraw {
             )
         };
 
-        let vertex_buffer_layout = if let Some(mesh_id) = mesh {
-            let Some(vertex_buffer_layout_id) = renderer
+        let vertex_buffer_layouts = if let Some(mesh_id) = mesh {
+            let Some(vertex_buffer_layout_ids) = renderer
                 .meshes
                 .get(mesh_id)
-                .map(|mesh| mesh.vertex_buffer_layout_id)
+                .map(|mesh| mesh.vertex_buffer_layout_ids.clone())
             else {
                 tracing::warn!("Invalid mesh id ({:?})", mesh_id);
                 return None;
             };
-            Some(vertex_buffer_layout_id)
+            vertex_buffer_layout_ids
         } else {
-            None
+            Vec::new()
         };
 
         let instance_buffer_layout = instance_buffer_layout
@@ -65,7 +65,7 @@ impl PreparedDraw {
         let key = RenderPipelineKey {
             render_target_format: renderer.render_target_format(surface_format, render_target)?,
             depth_stencil,
-            vertex_buffer_layout,
+            vertex_buffer_layouts,
             instance_buffer_layout,
             pipeline_layout: pipeline_layout_id,
             vertex_shader,
@@ -73,7 +73,7 @@ impl PreparedDraw {
             blend_mode,
         };
 
-        if !renderer.ensure_render_pipeline(key) {
+        if !renderer.ensure_render_pipeline(key.clone()) {
             tracing::warn!("Could not ensure a valid render pipeline!");
             return None;
         }

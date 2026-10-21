@@ -142,7 +142,9 @@ impl DrawList {
             }));
     }
 
-    /// Queues an indexed draw using the provided mesh and material.
+    /// Queues a mesh draw using the provided mesh and material.
+    ///
+    /// Indexed vs non-indexed behavior is derived from the mesh itself.
     pub fn draw_mesh(&mut self, render_target: RenderTarget, mesh: MeshId, material: MaterialId) {
         self.commands.push(FrameCommand::DrawMesh(DrawMesh {
             render_target,
@@ -164,7 +166,9 @@ impl DrawList {
         }));
     }
 
-    /// Queues an instanced indexed draw using the provided mesh and material.
+    /// Queues an instanced mesh draw using the provided mesh and material.
+    ///
+    /// Indexed vs non-indexed behavior is derived from the mesh itself.
     pub fn draw_mesh_instanced<I: AsInstanceBufferLayout>(
         &mut self,
         render_target: RenderTarget,

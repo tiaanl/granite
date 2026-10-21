@@ -13,7 +13,7 @@ pub use winit::event::WindowEvent;
 /// Typical use:
 /// ```ignore
 /// fn main() {
-///     granite::run(|renderer: &mut Renderer| Scene::new(renderer));
+///     gpup::run(|renderer: &mut Renderer| Scene::new(renderer));
 /// }
 /// ```
 #[inline]

@@ -1,4 +1,4 @@
-use granite::{
+use gpup::{
     app::SceneBuilder,
     renderer::{Frame, Renderer},
     scene::Scene,
@@ -123,5 +123,5 @@ impl Scene for Minimal {
 }
 
 fn main() {
-    granite::run(MinimalBuilder);
+    gpup::run(MinimalBuilder);
 }

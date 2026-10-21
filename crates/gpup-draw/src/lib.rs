@@ -238,11 +238,11 @@ struct RenderPipelineDepthKey {
     write_enabled: bool,
 }
 
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 struct RenderPipelineKey {
     render_target_format: wgpu::TextureFormat,
     depth_stencil: Option<RenderPipelineDepthKey>,
-    vertex_buffer_layout: Option<Id>,
+    vertex_buffer_layouts: Vec<Id>,
     instance_buffer_layout: Option<Id>,
     pipeline_layout: Id,
     vertex_shader: VertexShaderId,

@@ -3,7 +3,9 @@ use wgpu::{self, util::DeviceExt};
 
 use crate::{
     DepthBufferId, DrawListRenderer, FrameContext, MaterialId, MeshId, RenderTargetId,
-    StorageBufferId, TextureId, UniformId, draw_list::RenderTarget, mesh::VertexBufferLayout,
+    StorageBufferId, TextureId, UniformId,
+    draw_list::RenderTarget,
+    mesh::{MeshDrawCount, VertexBufferLayout},
     prepared_draw::PreparedDraw,
 };
 
@@ -107,13 +109,26 @@ impl DrawMesh {
             return;
         };
 
-        let Some(index_count) =
+        let Some(mesh_draw_count) =
             bind_draw_state(renderer, &mut render_pass, &prepared_draw, self.mesh)
         else {
             return;
         };
 
-        render_pass.draw_indexed(0..index_count, 0, 0..1);
+        match mesh_draw_count {
+            MeshDrawCount::Indexed { index_count, .. } => {
+                if index_count == 0 {
+                    return;
+                }
+                render_pass.draw_indexed(0..index_count, 0, 0..1);
+            }
+            MeshDrawCount::NonIndexed { vertex_count } => {
+                if vertex_count == 0 {
+                    return;
+                }
+                render_pass.draw(0..vertex_count, 0..1);
+            }
+        }
     }
 }
 
@@ -172,14 +187,31 @@ impl DrawMeshInstanced {
             return;
         };
 
-        let Some(index_count) =
+        let Some(mesh_draw_count) =
             bind_draw_state(renderer, &mut render_pass, &prepared_draw, self.mesh)
         else {
             return;
         };
 
-        render_pass.set_vertex_buffer(1, instance_buffer.slice(..));
-        render_pass.draw_indexed(0..index_count, 0, 0..self.instance_count);
+        let Some(mesh) = renderer.meshes.get(self.mesh) else {
+            tracing::warn!("Invalid mesh id ({:?})", self.mesh);
+            return;
+        };
+        render_pass.set_vertex_buffer(mesh.vertex_buffers.len() as u32, instance_buffer.slice(..));
+        match mesh_draw_count {
+            MeshDrawCount::Indexed { index_count, .. } => {
+                if index_count == 0 {
+                    return;
+                }
+                render_pass.draw_indexed(0..index_count, 0, 0..self.instance_count);
+            }
+            MeshDrawCount::NonIndexed { vertex_count } => {
+                if vertex_count == 0 {
+                    return;
+                }
+                render_pass.draw(0..vertex_count, 0..self.instance_count);
+            }
+        }
     }
 }
 
@@ -271,7 +303,7 @@ fn bind_draw_state(
     render_pass: &mut wgpu::RenderPass<'_>,
     prepared_draw: &PreparedDraw,
     mesh_id: MeshId,
-) -> Option<u32> {
+) -> Option<MeshDrawCount> {
     if !bind_pipeline_and_groups(renderer, render_pass, prepared_draw) {
         return None;
     }
@@ -281,10 +313,15 @@ fn bind_draw_state(
         return None;
     };
 
-    render_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
-    render_pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+    for (buffer_index, vertex_buffer) in mesh.vertex_buffers.iter().enumerate() {
+        render_pass.set_vertex_buffer(buffer_index as u32, vertex_buffer.slice(..));
+    }
 
-    Some(mesh.index_count)
+    if let Some(index_buffer) = &mesh.index_buffer {
+        render_pass.set_index_buffer(index_buffer.buffer.slice(..), index_buffer.format);
+    }
+
+    Some(mesh.draw_count())
 }
 
 fn bind_pipeline_and_groups(

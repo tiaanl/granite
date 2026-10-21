@@ -1,11 +1,11 @@
-# granite
+# gpup
 
-An opinionated library for removing the boilerplate from setting up a window and rendering graphics with `wgpu`.
+An opinionated crate for minimizing the boilerplate from setting up a window and rendering graphics with `wgpu`.
 
 ## Crates
 
-- `granite` (src/granite) holds all the logic to start and run the application.
-- `granite-macros` (src/granite-macros) holds procedural macros for simplifying decleration of buffers used for rendering.
+- `gpup` (src/gpup) holds all the logic to start and run the application.
+- `gpup-macros` (src/gpup-macros) holds procedural macros for simplifying decleration of buffers used for rendering.
 
 ## Operations
 

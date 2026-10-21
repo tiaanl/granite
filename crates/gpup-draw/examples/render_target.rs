@@ -4,18 +4,18 @@
 //! Pass 1: colored triangle → offscreen render target (RenderTarget::Custom)
 //! Pass 2: fullscreen blit of render target → surface (RenderTarget::Surface)
 use glam::{UVec2, Vec4};
-use granite::{
+use gpup::{
     app::SceneBuilder,
     renderer::{Frame, Renderer},
     scene::Scene,
 };
-use granite_draw::{
+use gpup_draw::{
     BlendMode, DrawListRenderer, FrameContext, MaterialId, MeshId, RenderTargetId,
     draw_list::{DrawList, RenderTarget},
     render_target::{RenderTargetFormat, RenderTargetSize},
     sampler::{SamplerAddressing, SamplerFiltering},
 };
-use granite_macros::vertex_buffer;
+use gpup_macros::vertex_buffer;
 
 // Pass 1: draw a simple RGB triangle into the offscreen target.
 const SCENE_SHADER: &str = r"
@@ -165,5 +165,5 @@ impl Scene for PostProcess {
 }
 
 fn main() {
-    granite::run(PostProcessBuilder);
+    gpup::run(PostProcessBuilder);
 }

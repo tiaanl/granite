@@ -500,7 +500,7 @@ impl DrawListRenderer {
 
     pub(super) fn ensure_render_pipeline(&mut self, key: RenderPipelineKey) -> bool {
         if !self.render_pipeline_cache.contains_key(&key) {
-            let Some(render_pipeline) = self.create_render_pipeline(key) else {
+            let Some(render_pipeline) = self.create_render_pipeline(key.clone()) else {
                 return false;
             };
             self.render_pipeline_cache.insert(key, render_pipeline);
@@ -514,15 +514,24 @@ impl DrawListRenderer {
         let device = &self.device;
         let pipeline_layout = self.pipeline_layouts.get(key.pipeline_layout)?;
 
-        let vertex_buffer_layout = key
-            .vertex_buffer_layout
-            .and_then(|vertex_buffer_layout| self.vertex_buffer_layouts.get(vertex_buffer_layout));
-        if key.vertex_buffer_layout.is_some() && vertex_buffer_layout.is_none() {
-            tracing::warn!("Vertex buffer layout not found");
-            return None;
+        let mut vertex_buffer_layouts = Vec::with_capacity(key.vertex_buffer_layouts.len());
+        for vertex_buffer_layout_id in key.vertex_buffer_layouts.iter().copied() {
+            let Some(vertex_buffer_layout) =
+                self.vertex_buffer_layouts.get(vertex_buffer_layout_id)
+            else {
+                tracing::warn!("Vertex buffer layout not found");
+                return None;
+            };
+            vertex_buffer_layouts.push(vertex_buffer_layout);
         }
-        let vertex_attributes = vertex_buffer_layout
-            .map(|vertex_buffer_layout| mesh::vertex_attributes(vertex_buffer_layout, 0));
+
+        let mut vertex_attributes = Vec::with_capacity(vertex_buffer_layouts.len());
+        let mut shader_location_offset = 0;
+        for vertex_buffer_layout in vertex_buffer_layouts.iter() {
+            let attributes = mesh::vertex_attributes(vertex_buffer_layout, shader_location_offset);
+            shader_location_offset += attributes.len() as u32;
+            vertex_attributes.push(attributes);
+        }
 
         let instance_buffer_layout = {
             key.instance_buffer_layout
@@ -538,9 +547,7 @@ impl DrawListRenderer {
                 })
         };
 
-        let instance_attribute_start = vertex_attributes
-            .as_ref()
-            .map_or(0, |vertex_attributes| vertex_attributes.len() as u32);
+        let instance_attribute_start = shader_location_offset;
         let instance_attributes = instance_buffer_layout.map(|instance_buffer_layout| {
             mesh::vertex_attributes(instance_buffer_layout, instance_attribute_start)
         });
@@ -583,8 +590,8 @@ impl DrawListRenderer {
             });
 
         let mut buffers: Vec<wgpu::VertexBufferLayout<'_>> = Vec::new();
-        if let (Some(vertex_buffer_layout), Some(vertex_attributes)) =
-            (&vertex_buffer_layout, &vertex_attributes)
+        for (vertex_buffer_layout, vertex_attributes) in
+            vertex_buffer_layouts.iter().zip(vertex_attributes.iter())
         {
             buffers.push(wgpu::VertexBufferLayout {
                 array_stride: vertex_buffer_layout.size,
