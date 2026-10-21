@@ -28,6 +28,9 @@ pub enum RunError {
     /// The renderer could not be initialized.
     #[error("Could not initialize the renderer. {0}")]
     CreateRenderer(#[from] RendererCreateError),
+    /// The scene builder failed.
+    #[error("Could not build the scene. {0}")]
+    BuildScene(#[source] Box<dyn std::error::Error + Send + Sync + 'static>),
 }
 
 /// Creates a window and renderer, then runs the scene's event loop until the application exits.
@@ -38,7 +41,7 @@ pub enum RunError {
 /// struct MyScene;
 ///
 /// impl MyScene {
-///     fn new(renderer: &mut Renderer) -> Self {
+///     fn new(renderer: &Renderer) -> Self {
 ///         // Initialize graphics using the renderer.
 ///         Self
 ///     }
@@ -61,9 +64,48 @@ pub fn run<S>(build_scene: impl FnOnce(&Renderer) -> S) -> Result<(), RunError>
 where
     S: self::Scene,
 {
+    try_run(|renderer| Ok::<_, std::convert::Infallible>(build_scene(renderer)))
+}
+
+/// Creates a window and renderer, then builds and runs a scene that may fail to initialize.
+///
+/// Use [`run`] when scene construction is infallible.
+///
+/// ```no_run
+/// use gpup::{Frame, Renderer, Scene};
+///
+/// struct MyScene {
+///     shader: String,
+/// }
+///
+/// impl MyScene {
+///     fn new(renderer: &Renderer) -> Result<Self, std::io::Error> {
+///         let shader = std::fs::read_to_string("shader.wgsl")?;
+///         Ok(Self { shader })
+///     }
+/// }
+///
+/// impl Scene for MyScene {
+///     fn frame(&mut self, renderer: &Renderer, frame: &Frame) {}
+/// }
+///
+/// fn main() -> Result<(), gpup::RunError> {
+///     gpup::try_run(MyScene::new)
+/// }
+/// ```
+#[inline]
+pub fn try_run<SceneType, BuildError>(
+    build_scene: impl FnOnce(&Renderer) -> Result<SceneType, BuildError>,
+) -> Result<(), RunError>
+where
+    SceneType: Scene,
+    BuildError: Into<Box<dyn std::error::Error + Send + Sync + 'static>>,
+{
     let event_loop = winit::event_loop::EventLoop::new()?;
     let mut app = app::App::Suspended {
-        build_scene: Some(build_scene),
+        build_scene: Some(move |renderer: &Renderer| {
+            build_scene(renderer).map_err(|error| RunError::BuildScene(error.into()))
+        }),
     };
     let result = event_loop.run_app(&mut app);
 

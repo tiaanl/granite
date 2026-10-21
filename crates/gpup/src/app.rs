@@ -18,7 +18,7 @@ use crate::{InputEvent, RunError, SurfaceSize, SystemEvent, renderer::Renderer, 
 pub(super) enum App<S, F>
 where
     S: Scene,
-    F: FnOnce(&Renderer) -> S,
+    F: FnOnce(&Renderer) -> Result<S, RunError>,
 {
     /// The application is in a suspended state.
     Suspended { build_scene: Option<F> },
@@ -42,7 +42,7 @@ where
 impl<S, F> App<S, F>
 where
     S: Scene,
-    F: FnOnce(&Renderer) -> S,
+    F: FnOnce(&Renderer) -> Result<S, RunError>,
 {
     fn can_render(&self) -> bool {
         let Self::Resumed {
@@ -60,7 +60,7 @@ where
 impl<S, F> ApplicationHandler for App<S, F>
 where
     S: Scene,
-    F: FnOnce(&Renderer) -> S,
+    F: FnOnce(&Renderer) -> Result<S, RunError>,
 {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         let App::Suspended { build_scene } = self else {
@@ -83,7 +83,7 @@ where
             }
         };
 
-        let mut renderer = match Renderer::new(Arc::clone(&window)) {
+        let renderer = match Renderer::new(Arc::clone(&window)) {
             Ok(renderer) => renderer,
             Err(error) => {
                 *self = Self::Failed {
@@ -95,7 +95,14 @@ where
         };
 
         // Build the scene with the initialized renderer.
-        let scene = build_scene(&mut renderer);
+        let scene = match build_scene(&renderer) {
+            Ok(scene) => scene,
+            Err(error) => {
+                *self = Self::Failed { error };
+                event_loop.exit();
+                return;
+            }
+        };
 
         *self = Self::Resumed {
             window,
