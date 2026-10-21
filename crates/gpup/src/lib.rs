@@ -20,13 +20,13 @@ pub use winit::event::WindowEvent;
 #[derive(Debug, thiserror::Error)]
 pub enum RunError {
     /// The event loop could not be created or run.
-    #[error("Could not create or run the event loop: {0}")]
+    #[error("Could not create or run the event loop. {0}")]
     EventLoop(#[from] winit::error::EventLoopError),
     /// The application window could not be created.
-    #[error("Could not create the window: {0}")]
+    #[error("Could not create the window. {0}")]
     CreateWindow(#[from] winit::error::OsError),
     /// The renderer could not be initialized.
-    #[error("Could not initialize the renderer: {0}")]
+    #[error("Could not initialize the renderer. {0}")]
     CreateRenderer(#[from] renderer::RendererCreateError),
 }
 

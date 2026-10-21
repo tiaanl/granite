@@ -211,7 +211,7 @@ where
                         // Skipping frame.
                     }
                     Err(err) => {
-                        tracing::warn!("Could not acquire next frame! {err}");
+                        tracing::warn!("Could not acquire next frame. {err}");
                     }
                 };
             }

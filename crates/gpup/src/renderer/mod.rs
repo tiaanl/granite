@@ -18,19 +18,19 @@ mod frame;
 /// Errors that can happen while creating a [`Renderer`].
 pub enum RendererCreateError {
     /// Could not create a surface for the window.
-    #[error("Could not create the window render surface! ({0})")]
+    #[error("Could not create the window render surface. {0}")]
     CreateSurface(#[from] wgpu::CreateSurfaceError),
 
     /// Could not determine a valid surface configuration.
-    #[error("The window surface configuration could not be determined!")]
+    #[error("The window surface configuration could not be determined.")]
     DetermineConfigurtation,
 
     /// Could not acquire a compatible graphics adapter.
-    #[error("Could not request a graphics adapter! ({0})")]
+    #[error("Could not request a graphics adapter. {0}")]
     RequestAdapter(#[from] wgpu::RequestAdapterError),
 
     /// Could not create a logical device and queue.
-    #[error("Could not request a device and queue from the adapter! ({0})")]
+    #[error("Could not request a device and queue from the adapter. {0}")]
     RequestDevice(#[from] wgpu::RequestDeviceError),
 }
 
@@ -38,13 +38,13 @@ pub enum RendererCreateError {
 /// Errors that can happen while submitting a frame.
 pub enum NextFrameError {
     /// Could not acquire the current swapchain frame.
-    #[error("Could not acquire the current frame from the render surface! ({0})")]
+    #[error("Could not acquire the current frame from the render surface. {0}")]
     AcquireCurrentFrame(String),
 
-    #[error("Could not recreate the surface! ({0})")]
+    #[error("Could not recreate the surface. {0}")]
     CreateSurfaceError(#[from] wgpu::CreateSurfaceError),
 
-    #[error("Surface validation error!")]
+    #[error("Surface validation error.")]
     ValidationError,
 }
 
