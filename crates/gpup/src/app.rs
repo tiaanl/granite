@@ -167,9 +167,7 @@ where
             scene.input(&input_event);
         }
 
-        if let Some(system_event) = SystemEvent::from_window_event(&event) {
-            scene.system_event(&system_event);
-        }
+        let system_event = SystemEvent::from_window_event(&event);
 
         match event {
             WindowEvent::CloseRequested => {
@@ -219,6 +217,11 @@ where
             }
 
             _ => {}
+        }
+
+        // We let the scene know about system events after we possibly updated out internal state.
+        if let Some(system_event) = system_event {
+            scene.system_event(&system_event);
         }
     }
 }
