@@ -76,7 +76,8 @@ struct PostProcess {
 }
 
 impl PostProcess {
-    fn new(renderer: &Renderer) -> Self {
+    fn new(context: gpup::RunContext<'_>) -> Self {
+        let renderer = context.renderer;
         let mut draw_list_renderer =
             DrawListRenderer::new(renderer.device().clone(), renderer.queue().clone());
         // Offscreen target that automatically matches and tracks the surface resolution.

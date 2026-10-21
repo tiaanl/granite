@@ -4,7 +4,7 @@ use winit::{
     application::ApplicationHandler,
     dpi::PhysicalSize,
     event::WindowEvent,
-    event_loop::{ActiveEventLoop, ControlFlow},
+    event_loop::{ActiveEventLoop, ControlFlow, EventLoopProxy},
     window::{Window, WindowAttributes, WindowId},
 };
 
@@ -57,7 +57,7 @@ where
     }
 }
 
-impl<S, F> ApplicationHandler for App<S, F>
+impl<S, F> ApplicationHandler<AppEvent> for App<S, F>
 where
     S: Scene,
     F: FnOnce(&Renderer) -> Result<S, RunError>,
@@ -223,5 +223,33 @@ where
         if let Some(system_event) = system_event {
             scene.system_event(&system_event);
         }
+    }
+
+    fn user_event(&mut self, event_loop: &ActiveEventLoop, event: AppEvent) {
+        match event {
+            AppEvent::Exit => event_loop.exit(),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum AppEvent {
+    Exit,
+}
+
+/// A light-weight handle to the application so that [Scene]'s can request actions from the [App].
+#[derive(Clone)]
+pub struct AppHandle {
+    proxy: EventLoopProxy<AppEvent>,
+}
+
+impl AppHandle {
+    pub(crate) fn new(proxy: EventLoopProxy<AppEvent>) -> Self {
+        Self { proxy }
+    }
+
+    pub fn request_exit(&self) {
+        // Just ignore the error for now.
+        self.proxy.send_event(AppEvent::Exit).unwrap();
     }
 }

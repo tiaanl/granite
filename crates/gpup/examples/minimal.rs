@@ -31,11 +31,13 @@ fn fragment(in: VertexOut) -> @location(0) vec4<f32> {
 ";
 
 struct Minimal {
+    app_handle: gpup::AppHandle,
     pipeline: wgpu::RenderPipeline,
 }
 
 impl Minimal {
-    fn new(renderer: &gpup::Renderer) -> Self {
+    fn new(context: gpup::RunContext<'_>) -> Self {
+        let renderer = context.renderer;
         let device = renderer.device();
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -74,11 +76,25 @@ impl Minimal {
             cache: None,
         });
 
-        Self { pipeline }
+        Self {
+            app_handle: context.app_handle.clone(),
+            pipeline,
+        }
     }
 }
 
 impl gpup::Scene for Minimal {
+    fn input(&mut self, event: &gpup::InputEvent) {
+        if matches!(
+            event,
+            gpup::InputEvent::KeyUp {
+                key: gpup::KeyCode::Escape
+            }
+        ) {
+            self.app_handle.request_exit();
+        }
+    }
+
     fn frame(&mut self, renderer: &gpup::Renderer, frame: &gpup::Frame) {
         let device = renderer.device();
 

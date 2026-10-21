@@ -114,7 +114,8 @@ struct DepthExample {
 }
 
 impl DepthExample {
-    fn new(renderer: &Renderer) -> Self {
+    fn new(context: gpup::RunContext<'_>) -> Self {
+        let renderer = context.renderer;
         let mut draw_list_renderer =
             DrawListRenderer::new(renderer.device().clone(), renderer.queue().clone());
 

@@ -6,6 +6,7 @@ mod scene;
 mod surface_size;
 mod system_event;
 
+pub use app::AppHandle;
 pub use input::{InputEvent, KeyCode, MouseButton, MousePosition};
 pub use input_state::InputState;
 pub use renderer::{Frame, NextFrameError, Renderer, RendererCreateError};
@@ -15,6 +16,8 @@ pub use system_event::SystemEvent;
 
 // Re-export
 pub use wgpu;
+
+use winit::event_loop::EventLoop;
 
 /// Errors returned when starting or running an application.
 #[derive(Debug, thiserror::Error)]
@@ -33,16 +36,23 @@ pub enum RunError {
     BuildScene(#[source] Box<dyn std::error::Error + Send + Sync + 'static>),
 }
 
+pub struct RunContext<'a> {
+    /// The renderer to use when initializing graphics resources.
+    pub renderer: &'a Renderer,
+    /// The application handle. Clone it to retain it in the scene.
+    pub app_handle: &'a AppHandle,
+}
+
 /// Creates a window and renderer, then runs the scene's event loop until the application exits.
 ///
 /// ```no_run
-/// use gpup::{Frame, Renderer, Scene};
+/// use gpup::{Frame, Renderer, RunContext, Scene};
 ///
 /// struct MyScene;
 ///
 /// impl MyScene {
-///     fn new(renderer: &Renderer) -> Self {
-///         // Initialize graphics using the renderer.
+///     fn new(context: RunContext<'_>) -> Self {
+///         // Initialize graphics using context.renderer.
 ///         Self
 ///     }
 /// }
@@ -60,11 +70,11 @@ pub enum RunError {
 /// Returns an error if event-loop creation or execution, window creation, or
 /// renderer initialization fails.
 #[inline]
-pub fn run<S>(build_scene: impl FnOnce(&Renderer) -> S) -> Result<(), RunError>
+pub fn run<S>(build_scene: impl FnOnce(RunContext<'_>) -> S) -> Result<(), RunError>
 where
     S: self::Scene,
 {
-    try_run(|renderer| Ok::<_, std::convert::Infallible>(build_scene(renderer)))
+    try_run(|context| Ok::<_, std::convert::Infallible>(build_scene(context)))
 }
 
 /// Creates a window and renderer, then builds and runs a scene that may fail to initialize.
@@ -72,14 +82,14 @@ where
 /// Use [`run`] when scene construction is infallible.
 ///
 /// ```no_run
-/// use gpup::{Frame, Renderer, Scene};
+/// use gpup::{Frame, Renderer, RunContext, Scene};
 ///
 /// struct MyScene {
 ///     shader: String,
 /// }
 ///
 /// impl MyScene {
-///     fn new(renderer: &Renderer) -> Result<Self, std::io::Error> {
+///     fn new(context: RunContext<'_>) -> Result<Self, std::io::Error> {
 ///         let shader = std::fs::read_to_string("shader.wgsl")?;
 ///         Ok(Self { shader })
 ///     }
@@ -95,16 +105,24 @@ where
 /// ```
 #[inline]
 pub fn try_run<SceneType, BuildError>(
-    build_scene: impl FnOnce(&Renderer) -> Result<SceneType, BuildError>,
+    build_scene: impl FnOnce(RunContext<'_>) -> Result<SceneType, BuildError>,
 ) -> Result<(), RunError>
 where
     SceneType: Scene,
     BuildError: Into<Box<dyn std::error::Error + Send + Sync + 'static>>,
 {
-    let event_loop = winit::event_loop::EventLoop::new()?;
+    let event_loop: EventLoop<app::AppEvent> = EventLoop::with_user_event().build()?;
+
+    let proxy = event_loop.create_proxy();
+    let app_handle = AppHandle::new(proxy);
+
     let mut app = app::App::Suspended {
         build_scene: Some(move |renderer: &Renderer| {
-            build_scene(renderer).map_err(|error| RunError::BuildScene(error.into()))
+            build_scene(RunContext {
+                renderer,
+                app_handle: &app_handle,
+            })
+            .map_err(|error| RunError::BuildScene(error.into()))
         }),
     };
     let result = event_loop.run_app(&mut app);
