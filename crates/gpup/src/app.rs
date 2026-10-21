@@ -8,7 +8,7 @@ use winit::{
     window::{Window, WindowAttributes, WindowId},
 };
 
-use crate::{InputEvent, RunError, SystemEvent, renderer::Renderer, scene::Scene};
+use crate::{InputEvent, RunError, SurfaceSize, SystemEvent, renderer::Renderer, scene::Scene};
 
 pub trait SceneBuilder {
     type Scene: Scene;
@@ -192,7 +192,7 @@ where
             }
 
             WindowEvent::Resized(PhysicalSize { width, height }) => {
-                renderer.resize(width, height);
+                renderer.resize(SurfaceSize::new(width, height));
                 if width == 0 || height == 0 {
                     *last_frame_time = None;
                 }

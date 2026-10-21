@@ -3,13 +3,15 @@ mod input;
 mod input_state;
 mod renderer;
 mod scene;
+mod surface_size;
 mod system_event;
 
 pub use app::{App, SceneBuilder};
 pub use input::{InputEvent, KeyCode, MouseButton, MousePosition};
 pub use input_state::InputState;
-pub use renderer::{Frame, Renderer};
+pub use renderer::{Frame, NextFrameError, Renderer, RendererCreateError};
 pub use scene::Scene;
+pub use surface_size::SurfaceSize;
 pub use system_event::SystemEvent;
 
 // Re-export
@@ -26,7 +28,7 @@ pub enum RunError {
     CreateWindow(#[from] winit::error::OsError),
     /// The renderer could not be initialized.
     #[error("Could not initialize the renderer. {0}")]
-    CreateRenderer(#[from] renderer::RendererCreateError),
+    CreateRenderer(#[from] RendererCreateError),
 }
 
 /// Handles the main engine loop. Calls into the [scene::Scene] at significant points during the

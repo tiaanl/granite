@@ -129,10 +129,10 @@ impl SceneBuilder for SplineBuilder {
 
 impl Scene for Spline {
     fn system_event(&mut self, event: &SystemEvent) {
-        if let SystemEvent::Resized { width, height } = event {
+        if let SystemEvent::Resized(size) = event {
             self.pending_projection = Some(ProjectionUniform::from_view(
                 self.world_size,
-                UVec2::new(*width, *height),
+                UVec2::from(size.to_array()),
             ));
         }
     }
@@ -147,7 +147,11 @@ impl Scene for Spline {
         let instances = [Instance { offset: Vec2::ZERO }];
         draw_list.draw_mesh_instanced(RenderTarget::Surface, self.mesh, self.material, &instances);
         self.draw_list_renderer.submit_draw_list(
-            FrameContext::new(&frame.view, UVec2::from(frame.size), frame.format),
+            FrameContext::new(
+                &frame.view,
+                UVec2::from(frame.size.to_array()),
+                frame.format,
+            ),
             &draw_list,
         );
     }

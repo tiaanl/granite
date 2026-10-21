@@ -85,8 +85,10 @@ impl TerrainExample {
                 .unwrap()
         };
 
-        let camera_uniform = draw_list_renderer
-            .create_uniform("camera", &Camera::new(UVec2::from(renderer.surface_size())));
+        let camera_uniform = draw_list_renderer.create_uniform(
+            "camera",
+            &Camera::new(UVec2::from(renderer.surface_size().to_array())),
+        );
 
         let depth_buffer =
             draw_list_renderer.create_depth_buffer("main", DepthBufferSize::SurfaceSize);
@@ -151,8 +153,8 @@ impl Camera {
 
 impl gpup::Scene for TerrainExample {
     fn system_event(&mut self, event: &gpup::SystemEvent) {
-        if let gpup::SystemEvent::Resized { width, height } = event {
-            self.new_size = Some(UVec2::new(*width, *height));
+        if let gpup::SystemEvent::Resized(size) = event {
+            self.new_size = Some(UVec2::from(size.to_array()));
         }
     }
 
@@ -175,7 +177,7 @@ impl gpup::Scene for TerrainExample {
         self.draw_list_renderer.submit_draw_list(
             FrameContext {
                 view: &frame.view,
-                size: UVec2::from(frame.size),
+                size: UVec2::from(frame.size.to_array()),
                 format: frame.format,
             },
             &draw_list,

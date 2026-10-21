@@ -8,8 +8,10 @@ pub use winit::{event::MouseButton, keyboard::KeyCode};
 
 /// Optional keyboard and mouse state accumulated from [`InputEvent`]s.
 ///
-/// Store this in your scene, forward events to [`Self::handle_input_event`], and
-/// call [`Self::reset_current_frame`] after consuming input in each update.
+/// Store this in your scene, forward events to [`Self::handle_event`], and
+/// call [`Self::end_frame`] after consuming the accumulated frame data.
+/// Clearing in `Scene::update` means transient data is no longer available to
+/// `Scene::frame`. The scene owns this timing; gpup never clears it automatically.
 ///
 /// ```
 /// use gpup::{Frame, InputEvent, InputState, Renderer, Scene};
@@ -21,12 +23,12 @@ pub use winit::{event::MouseButton, keyboard::KeyCode};
 ///
 /// impl Scene for MyScene {
 ///     fn input(&mut self, event: &InputEvent) {
-///         self.input.handle_input_event(event);
+///         self.input.handle_event(event);
 ///     }
 ///
 ///     fn update(&mut self, delta_time: f32) {
 ///         // Read accumulated input here before clearing per-frame data.
-///         self.input.reset_current_frame();
+///         self.input.end_frame();
 ///     }
 ///
 ///     fn frame(&mut self, renderer: &Renderer, frame: &Frame) {}
@@ -36,6 +38,7 @@ pub use winit::{event::MouseButton, keyboard::KeyCode};
 pub struct InputState {
     key_pressed: HashSet<KeyCode>,
     key_just_pressed: HashSet<KeyCode>,
+    key_just_released: HashSet<KeyCode>,
     mouse_pressed: HashSet<MouseButton>,
     mouse_just_pressed: HashSet<MouseButton>,
     mouse_just_released: HashSet<MouseButton>,
@@ -48,12 +51,12 @@ impl InputState {
     /// Convenience adapter for applications receiving winit window events directly.
     pub fn handle_window_event(&mut self, event: &WindowEvent) {
         if let Some(event) = InputEvent::from_window_event(event) {
-            self.handle_input_event(&event);
+            self.handle_event(&event);
         }
     }
 
     /// Accumulate an input event. Frame data persists until explicitly reset.
-    pub fn handle_input_event(&mut self, event: &InputEvent) {
+    pub fn handle_event(&mut self, event: &InputEvent) {
         match event {
             InputEvent::FocusLost => {
                 // Cancel input without generating release actions on focus loss.
@@ -75,7 +78,9 @@ impl InputState {
                 }
             }
             InputEvent::KeyUp { key } => {
-                self.key_pressed.remove(key);
+                if self.key_pressed.remove(key) {
+                    self.key_just_released.insert(*key);
+                }
             }
             InputEvent::MouseDown { button } => {
                 self.mouse_pressed.insert(*button);
@@ -100,9 +105,12 @@ impl InputState {
         }
     }
 
-    /// Reset data being tracked per frame.
-    pub fn reset_current_frame(&mut self) {
+    /// Clear transient presses, releases, movement, and scrolling, preserving held inputs.
+    ///
+    /// Call after all consumers have read this frame's input.
+    pub fn end_frame(&mut self) {
         self.key_just_pressed.clear();
+        self.key_just_released.clear();
         self.mouse_just_pressed.clear();
         self.mouse_just_released.clear();
         self.mouse_delta = None;
@@ -119,6 +127,11 @@ impl InputState {
     #[inline]
     pub fn key_just_pressed(&self, key: KeyCode) -> bool {
         self.key_just_pressed.contains(&key)
+    }
+
+    #[inline]
+    pub fn key_just_released(&self, key: KeyCode) -> bool {
+        self.key_just_released.contains(&key)
     }
 
     #[inline]
@@ -232,16 +245,16 @@ mod tests {
     #[test]
     fn mouse_leaving_preserves_held_inputs_and_restarts_position_tracking() {
         let mut input = InputState::default();
-        input.handle_input_event(&InputEvent::KeyDown {
+        input.handle_event(&InputEvent::KeyDown {
             key: KeyCode::KeyA,
             repeat: false,
             is_synthetic: false,
         });
-        input.handle_input_event(&InputEvent::MouseDown {
+        input.handle_event(&InputEvent::MouseDown {
             button: MouseButton::Left,
         });
         for position in [MousePosition::new(10, 20), MousePosition::new(15, 25)] {
-            input.handle_input_event(&InputEvent::MouseMove { position });
+            input.handle_event(&InputEvent::MouseMove { position });
         }
         assert_eq!(input.mouse_delta(), Some(MousePosition::new(5, 5)));
 
@@ -254,15 +267,48 @@ mod tests {
         assert!(input.mouse_pressed(MouseButton::Left));
         assert!(!input.mouse_just_released(MouseButton::Left));
 
-        input.handle_input_event(&InputEvent::MouseMove {
+        input.handle_event(&InputEvent::MouseMove {
             position: MousePosition::new(100, 200),
         });
         assert_eq!(input.mouse_position(), Some(MousePosition::new(100, 200)));
         assert_eq!(input.mouse_delta(), None);
-        input.handle_input_event(&InputEvent::MouseMove {
+        input.handle_event(&InputEvent::MouseMove {
             position: MousePosition::new(103, 204),
         });
         assert_eq!(input.mouse_delta(), Some(MousePosition::new(3, 4)));
+    }
+
+    #[test]
+    fn key_releases_persist_until_end_frame_and_focus_loss_cancels_them() {
+        let mut input = InputState::default();
+        input.handle_event(&InputEvent::KeyDown {
+            key: KeyCode::KeyA,
+            repeat: false,
+            is_synthetic: false,
+        });
+        input.handle_event(&InputEvent::KeyDown {
+            key: KeyCode::KeyB,
+            repeat: false,
+            is_synthetic: false,
+        });
+        input.handle_event(&InputEvent::KeyUp { key: KeyCode::KeyA });
+        assert!(!input.key_pressed(KeyCode::KeyA));
+        assert!(input.key_just_pressed(KeyCode::KeyA));
+        assert!(input.key_just_released(KeyCode::KeyA));
+
+        input.end_frame();
+        assert!(!input.key_just_pressed(KeyCode::KeyA));
+        assert!(!input.key_just_released(KeyCode::KeyA));
+        assert!(input.key_pressed(KeyCode::KeyB));
+        input.handle_event(&InputEvent::KeyUp { key: KeyCode::KeyA });
+        assert!(!input.key_just_released(KeyCode::KeyA));
+
+        input.handle_event(&InputEvent::KeyUp { key: KeyCode::KeyB });
+        assert!(input.key_just_released(KeyCode::KeyB));
+        input.handle_event(&InputEvent::FocusLost);
+        assert!(!input.key_just_released(KeyCode::KeyB));
+        input.handle_event(&InputEvent::KeyUp { key: KeyCode::KeyB });
+        assert!(!input.key_just_released(KeyCode::KeyB));
     }
 
     #[test]
@@ -273,24 +319,24 @@ mod tests {
             repeat: false,
             is_synthetic: false,
         };
-        input.handle_input_event(&press);
+        input.handle_event(&press);
         assert!(input.key_pressed(KeyCode::KeyA));
         assert!(input.key_just_pressed(KeyCode::KeyA));
-        input.reset_current_frame();
-        input.handle_input_event(&press);
+        input.end_frame();
+        input.handle_event(&press);
         assert!(!input.key_just_pressed(KeyCode::KeyA));
-        input.handle_input_event(&InputEvent::KeyUp { key: KeyCode::KeyA });
+        input.handle_event(&InputEvent::KeyUp { key: KeyCode::KeyA });
         assert!(!input.key_pressed(KeyCode::KeyA));
 
         for (repeat, is_synthetic) in [(true, false), (false, true)] {
-            input.handle_input_event(&InputEvent::KeyDown {
+            input.handle_event(&InputEvent::KeyDown {
                 key: KeyCode::KeyA,
                 repeat,
                 is_synthetic,
             });
             assert!(input.key_pressed(KeyCode::KeyA));
             assert!(!input.key_just_pressed(KeyCode::KeyA));
-            input.handle_input_event(&InputEvent::KeyUp { key: KeyCode::KeyA });
+            input.handle_event(&InputEvent::KeyUp { key: KeyCode::KeyA });
         }
     }
 
@@ -302,14 +348,14 @@ mod tests {
             MousePosition::new(14, 18),
             MousePosition::new(17, 25),
         ] {
-            input.handle_input_event(&InputEvent::MouseMove { position });
+            input.handle_event(&InputEvent::MouseMove { position });
         }
-        input.handle_input_event(&InputEvent::MouseScroll { delta: 1.5 });
-        input.handle_input_event(&InputEvent::MouseScroll { delta: 2.0 });
-        input.handle_input_event(&InputEvent::MouseDown {
+        input.handle_event(&InputEvent::MouseScroll { delta: 1.5 });
+        input.handle_event(&InputEvent::MouseScroll { delta: 2.0 });
+        input.handle_event(&InputEvent::MouseDown {
             button: MouseButton::Left,
         });
-        input.handle_input_event(&InputEvent::KeyDown {
+        input.handle_event(&InputEvent::KeyDown {
             key: KeyCode::KeyA,
             repeat: false,
             is_synthetic: false,
@@ -318,26 +364,27 @@ mod tests {
         assert_eq!(input.mouse_wheel_delta(), 3.5);
         assert!(input.mouse_just_pressed(MouseButton::Left));
 
-        input.reset_current_frame();
+        input.end_frame();
         assert_eq!(input.mouse_delta(), None);
         assert_eq!(input.mouse_wheel_delta(), 0.0);
         assert_eq!(input.mouse_position(), Some(MousePosition::new(17, 25)));
         assert!(input.mouse_pressed(MouseButton::Left));
         assert!(!input.mouse_just_pressed(MouseButton::Left));
 
-        input.handle_input_event(&InputEvent::MouseUp {
+        input.handle_event(&InputEvent::MouseUp {
             button: MouseButton::Left,
         });
         assert!(!input.mouse_pressed(MouseButton::Left));
         assert!(input.mouse_just_released(MouseButton::Left));
-        input.reset_current_frame();
+        input.end_frame();
         assert!(!input.mouse_just_released(MouseButton::Left));
 
-        input.handle_input_event(&InputEvent::MouseDown {
+        input.handle_event(&InputEvent::MouseDown {
             button: MouseButton::Left,
         });
-        input.handle_input_event(&InputEvent::FocusLost);
+        input.handle_event(&InputEvent::FocusLost);
         assert!(!input.key_pressed(KeyCode::KeyA));
+        assert!(!input.key_just_released(KeyCode::KeyA));
         assert!(!input.mouse_pressed(MouseButton::Left));
         assert!(!input.mouse_just_pressed(MouseButton::Left));
         assert!(!input.mouse_just_released(MouseButton::Left));

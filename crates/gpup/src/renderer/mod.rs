@@ -7,6 +7,8 @@
 
 use std::sync::Arc;
 
+use crate::SurfaceSize;
+
 use thiserror::Error;
 use winit::window::Window;
 
@@ -23,7 +25,7 @@ pub enum RendererCreateError {
 
     /// Could not determine a valid surface configuration.
     #[error("The window surface configuration could not be determined.")]
-    DetermineConfigurtation,
+    DetermineConfiguration,
 
     /// Could not acquire a compatible graphics adapter.
     #[error("Could not request a graphics adapter. {0}")]
@@ -75,7 +77,7 @@ impl Renderer {
 
         let mut surface_config = surface
             .get_default_config(&adapter, width, height)
-            .ok_or_else(|| RendererCreateError::DetermineConfigurtation)?;
+            .ok_or_else(|| RendererCreateError::DetermineConfiguration)?;
         surface_config.present_mode = wgpu::PresentMode::Fifo;
 
         let (device, queue) =
@@ -107,8 +109,8 @@ impl Renderer {
     }
 
     #[inline]
-    pub fn surface_size(&self) -> [u32; 2] {
-        [self.surface_config.width, self.surface_config.height]
+    pub fn surface_size(&self) -> SurfaceSize {
+        SurfaceSize::new(self.surface_config.width, self.surface_config.height)
     }
 
     #[inline]
@@ -116,7 +118,9 @@ impl Renderer {
         self.surface_config.format
     }
 
-    pub fn resize(&mut self, width: u32, height: u32) {
+    pub fn resize(&mut self, size: SurfaceSize) {
+        let SurfaceSize { width, height } = size;
+
         self.surface_config.width = width;
         self.surface_config.height = height;
 
@@ -176,7 +180,7 @@ impl Renderer {
             let view = surface_texture
                 .texture
                 .create_view(&wgpu::TextureViewDescriptor::default());
-            let size = (self.surface_config.width, self.surface_config.height);
+            let size = self.surface_size();
             let format = self.surface_config.format;
 
             Ok(Some(Frame::new(surface_texture, view, size, format)))

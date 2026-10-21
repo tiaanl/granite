@@ -127,8 +127,10 @@ impl DepthExample {
         let mesh =
             draw_list_renderer.create_mesh("sphere", vertices.as_slice(), indices.as_slice());
 
-        let camera = draw_list_renderer
-            .create_uniform("camera", &Camera::new(UVec2::from(renderer.surface_size())));
+        let camera = draw_list_renderer.create_uniform(
+            "camera",
+            &Camera::new(UVec2::from(renderer.surface_size().to_array())),
+        );
 
         let material = draw_list_renderer
             .create_material_from_shader("main", SHADER)
@@ -163,13 +165,13 @@ impl DepthExample {
 
 impl Scene for DepthExample {
     fn system_event(&mut self, event: &SystemEvent) {
-        if let SystemEvent::Resized { width, height } = event {
-            self.new_size = Some(UVec2::new(*width, *height));
+        if let SystemEvent::Resized(size) = event {
+            self.new_size = Some(UVec2::from(size.to_array()));
         }
     }
 
     fn frame(&mut self, _renderer: &Renderer, frame: &Frame) {
-        let surface_size = UVec2::from(frame.size);
+        let surface_size = UVec2::from(frame.size.to_array());
 
         let mut draw_list = DrawList::default();
 

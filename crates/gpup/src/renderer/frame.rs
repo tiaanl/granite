@@ -1,9 +1,11 @@
+use crate::SurfaceSize;
+
 /// An active window frame containing the swapchain view and surface metadata.
 pub struct Frame {
     pub(super) surface_texture: wgpu::SurfaceTexture,
 
     pub view: wgpu::TextureView,
-    pub size: (u32, u32), // width, height
+    pub size: SurfaceSize,
     pub format: wgpu::TextureFormat,
 }
 
@@ -11,7 +13,7 @@ impl Frame {
     pub(super) fn new(
         surface_texture: wgpu::SurfaceTexture,
         view: wgpu::TextureView,
-        size: (u32, u32),
+        size: SurfaceSize,
         format: wgpu::TextureFormat,
     ) -> Self {
         Self {
