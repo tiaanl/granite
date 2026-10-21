@@ -85,11 +85,14 @@ where
             return;
         };
 
-        let window = Arc::new(
-            event_loop
-                .create_window(WindowAttributes::default())
-                .unwrap(),
-        );
+        let window = match event_loop.create_window(WindowAttributes::default()) {
+            Ok(window) => Arc::new(window),
+            Err(err) => {
+                tracing::error!("Could not create window. {err}");
+                event_loop.exit();
+                return;
+            }
+        };
 
         let mut renderer = match Renderer::new(Arc::clone(&window)) {
             Ok(renderer) => renderer,
@@ -186,7 +189,6 @@ where
                     }
                     Err(err) => {
                         tracing::warn!("Could not acquire next frame! {err}");
-                        return;
                     }
                 };
             }
