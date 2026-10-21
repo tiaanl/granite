@@ -33,7 +33,7 @@ where
 // Allow the clippy large_enum_variant, becuase we only have one instance of [App] and we use the
 // enum as a "initialized" flag only.
 #[allow(clippy::large_enum_variant)]
-pub enum App<Builder>
+pub(super) enum App<Builder>
 where
     Builder: SceneBuilder,
 {

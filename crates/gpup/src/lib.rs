@@ -6,7 +6,7 @@ mod scene;
 mod surface_size;
 mod system_event;
 
-pub use app::{App, SceneBuilder};
+pub use app::SceneBuilder;
 pub use input::{InputEvent, KeyCode, MouseButton, MousePosition};
 pub use input_state::InputState;
 pub use renderer::{Frame, NextFrameError, Renderer, RendererCreateError};
