@@ -77,10 +77,13 @@ where
 {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         let App::Suspended { builder } = self else {
-            panic!("App already resumed.");
+            // Winit may emit redundant resume callbacks.
+            return;
         };
 
-        let builder = builder.take().expect("App already resumed.");
+        let Some(builder) = builder.take() else {
+            return;
+        };
 
         let window = Arc::new(
             event_loop
