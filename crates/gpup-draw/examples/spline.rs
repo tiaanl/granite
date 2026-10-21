@@ -84,7 +84,7 @@ impl SceneBuilder for SplineBuilder {
 
     fn build(self, renderer: &mut Renderer) -> Self::Scene {
         let mut draw_list_renderer =
-            DrawListRenderer::new(renderer.device.clone(), renderer.queue.clone());
+            DrawListRenderer::new(renderer.device().clone(), renderer.queue().clone());
         let points = vec![
             Vec2::new(100.0, 100.0),
             Vec2::new(1000.0, 400.0),
@@ -142,7 +142,7 @@ impl Scene for Spline {
         }
     }
 
-    fn frame(&mut self, _renderer: &Renderer, frame: &Frame, _delta_time: f32) {
+    fn frame(&mut self, _renderer: &Renderer, frame: &Frame) {
         let mut draw_list = DrawList::new();
 
         if let Some(projection) = self.pending_projection.take() {

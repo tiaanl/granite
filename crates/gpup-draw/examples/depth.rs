@@ -1,6 +1,7 @@
 use std::f32::consts::{PI, TAU};
 
 use glam::{Mat4, UVec2, Vec3};
+use gpup::prelude::*;
 use gpup::renderer::Renderer;
 use gpup_draw::{
     DepthBufferId, DepthCompare, DrawListRenderer, FrameContext, MaterialId, MeshId, UniformId,
@@ -116,7 +117,7 @@ struct DepthExample {
 impl DepthExample {
     fn new(renderer: &mut Renderer) -> Self {
         let mut draw_list_renderer =
-            DrawListRenderer::new(renderer.device.clone(), renderer.queue.clone());
+            DrawListRenderer::new(renderer.device().clone(), renderer.queue().clone());
 
         let depth_buffer =
             draw_list_renderer.create_depth_buffer("depth", DepthBufferSize::SurfaceSize);
@@ -161,19 +162,14 @@ impl DepthExample {
     }
 }
 
-impl gpup::scene::Scene for DepthExample {
-    fn window_event(&mut self, event: &gpup::WindowEvent) {
-        if let gpup::WindowEvent::Resized(size) = event {
+impl Scene for DepthExample {
+    fn window_event(&mut self, event: &WindowEvent) {
+        if let WindowEvent::Resized(size) = event {
             self.new_size = Some(UVec2::new(size.width, size.height));
         }
     }
 
-    fn frame(
-        &mut self,
-        _renderer: &gpup::renderer::Renderer,
-        frame: &gpup::renderer::Frame,
-        _delta_time: f32,
-    ) {
+    fn frame(&mut self, _renderer: &Renderer, frame: &Frame) {
         let surface_size = UVec2::from(frame.size);
 
         let mut draw_list = DrawList::default();

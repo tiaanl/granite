@@ -4,6 +4,7 @@ pub mod renderer;
 pub mod scene;
 
 pub mod prelude {
+    pub use super::WindowEvent;
     pub use super::app::{App, SceneBuilder};
     pub use super::input::InputState;
     pub use super::renderer::{Frame, Renderer};

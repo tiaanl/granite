@@ -86,7 +86,7 @@ impl SceneBuilder for PostProcessBuilder {
 
     fn build(self, renderer: &mut Renderer) -> Self::Scene {
         let mut draw_list_renderer =
-            DrawListRenderer::new(renderer.device.clone(), renderer.queue.clone());
+            DrawListRenderer::new(renderer.device().clone(), renderer.queue().clone());
         // Offscreen target that automatically matches and tracks the surface resolution.
         let render_target = draw_list_renderer.create_render_target(
             "offscreen",
@@ -139,7 +139,7 @@ impl SceneBuilder for PostProcessBuilder {
 }
 
 impl Scene for PostProcess {
-    fn frame(&mut self, _renderer: &Renderer, frame: &Frame, _delta_time: f32) {
+    fn frame(&mut self, _renderer: &Renderer, frame: &Frame) {
         let mut draw_list = DrawList::new();
 
         // Pass 1: draw the triangle into the offscreen render target.

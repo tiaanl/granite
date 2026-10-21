@@ -483,7 +483,7 @@ impl DrawListRenderer {
         let mut bind_group_layouts = Vec::with_capacity(key.bind_group_layouts.len());
         for bind_group_layout_id in key.bind_group_layouts.iter() {
             let bind_group_layout = self.bind_group_layouts.get(*bind_group_layout_id)?;
-            bind_group_layouts.push(bind_group_layout);
+            bind_group_layouts.push(Some(bind_group_layout));
         }
 
         let pipeline_layout = self
@@ -491,7 +491,7 @@ impl DrawListRenderer {
             .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: None,
                 bind_group_layouts: bind_group_layouts.as_slice(),
-                push_constant_ranges: &[],
+                ..Default::default()
             });
 
         let pipeline_layout_id = self.pipeline_layouts.insert_keyed(key, pipeline_layout);
@@ -583,30 +583,34 @@ impl DrawListRenderer {
             .depth_stencil
             .map(|depth_stencil| wgpu::DepthStencilState {
                 format: depth_stencil.format,
-                depth_write_enabled: depth_stencil.write_enabled,
-                depth_compare: depth_stencil.compare.as_wgpu(),
+                depth_write_enabled: if depth_stencil.write_enabled {
+                    Some(true)
+                } else {
+                    None
+                },
+                depth_compare: Some(depth_stencil.compare.as_wgpu()),
                 stencil: wgpu::StencilState::default(),
                 bias: wgpu::DepthBiasState::default(),
             });
 
-        let mut buffers: Vec<wgpu::VertexBufferLayout<'_>> = Vec::new();
+        let mut buffers: Vec<Option<wgpu::VertexBufferLayout<'_>>> = Vec::new();
         for (vertex_buffer_layout, vertex_attributes) in
             vertex_buffer_layouts.iter().zip(vertex_attributes.iter())
         {
-            buffers.push(wgpu::VertexBufferLayout {
+            buffers.push(Some(wgpu::VertexBufferLayout {
                 array_stride: vertex_buffer_layout.size,
                 step_mode: vertex_buffer_layout.step_mode,
                 attributes: vertex_attributes.as_slice(),
-            });
+            }));
         }
         if let (Some(instance_buffer_layout), Some(instance_attributes)) =
             (&instance_buffer_layout, &instance_attributes)
         {
-            buffers.push(wgpu::VertexBufferLayout {
+            buffers.push(Some(wgpu::VertexBufferLayout {
                 array_stride: instance_buffer_layout.size,
                 step_mode: instance_buffer_layout.step_mode,
                 attributes: instance_attributes.as_slice(),
-            });
+            }));
         }
 
         Some(
@@ -628,7 +632,7 @@ impl DrawListRenderer {
                     compilation_options: wgpu::PipelineCompilationOptions::default(),
                     targets,
                 }),
-                multiview: None,
+                multiview_mask: None,
                 cache: None,
             }),
         )

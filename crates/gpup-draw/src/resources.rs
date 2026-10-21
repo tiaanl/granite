@@ -3,10 +3,10 @@ use wgpu::{self, util::DeviceExt};
 
 use crate::{
     AsStorageBufferElement, AsUniformBuffer, BindGroupBindingResourceKey, BlendMode, DepthBufferId,
-    DepthCompare, DrawListRenderer, FragmentShaderId, FrameContext, Material,
-    MaterialDepthState, MaterialId, MaterialRecord, MeshId, RenderTargetId, SamplerId,
-    ShaderModuleId, ShaderVisibility, StorageBufferId, StorageBufferRecord, TextureId, UniformId,
-    UniformRecord, VertexShaderId,
+    DepthCompare, DrawListRenderer, FragmentShaderId, FrameContext, Material, MaterialDepthState,
+    MaterialId, MaterialRecord, MeshId, RenderTargetId, SamplerId, ShaderModuleId,
+    ShaderVisibility, StorageBufferId, StorageBufferRecord, TextureId, UniformId, UniformRecord,
+    VertexShaderId,
     bindings::DrawBinding,
     common::Id,
     depth_buffer::{DepthBufferRecord, DepthBufferSize},
@@ -768,7 +768,7 @@ impl DrawListRenderer {
             address_mode_w: address_mode,
             mag_filter: filter_mode,
             min_filter: filter_mode,
-            mipmap_filter: wgpu::FilterMode::Nearest,
+            mipmap_filter: wgpu::MipmapFilterMode::Nearest,
             ..Default::default()
         });
 

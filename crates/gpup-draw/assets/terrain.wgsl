@@ -8,7 +8,6 @@ var<uniform> camera: Camera;
 @group(0) @binding(1)
 var<storage> height_map: array<vec4<f32>>;
 
-
 struct Vertex {
     @location(0) pos: vec3<f32>,
     @location(1) normal: vec3<f32>,
@@ -31,10 +30,7 @@ fn vertex(vertex: Vertex, instance: Instance) -> VertexOutput {
     let height_data = height_map[clamped.y * 128u + clamped.x];
     let world_pos = vec3<f32>(vec2<f32>(global_pos), height_data.w);
 
-    return VertexOutput(
-        camera.proj_view * vec4(world_pos, 1.0),
-        height_data.xyz,
-    );
+    return VertexOutput(camera.proj_view * vec4(world_pos, 1.0), height_data.xyz);
 }
 
 const LIGHT_DIR: vec3<f32> = vec3<f32>(0.3, -0.5, 0.8);
