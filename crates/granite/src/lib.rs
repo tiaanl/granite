@@ -46,7 +46,7 @@ pub struct RunContext<'a> {
 /// Creates a window and renderer, then runs the scene's event loop until the application exits.
 ///
 /// ```no_run
-/// use gpup::{Frame, Renderer, RunContext, Scene};
+/// use granite::{Frame, Renderer, RunContext, Scene};
 ///
 /// struct MyScene;
 ///
@@ -61,8 +61,8 @@ pub struct RunContext<'a> {
 ///     fn frame(&mut self, renderer: &Renderer, frame: &Frame) {}
 /// }
 ///
-/// fn main() -> Result<(), gpup::RunError> {
-///     gpup::run(MyScene::new)
+/// fn main() -> Result<(), granite::RunError> {
+///     granite::run(MyScene::new)
 /// }
 /// ```
 ///
@@ -82,7 +82,7 @@ where
 /// Use [`run`] when scene construction is infallible.
 ///
 /// ```no_run
-/// use gpup::{Frame, Renderer, RunContext, Scene};
+/// use granite::{Frame, Renderer, RunContext, Scene};
 ///
 /// struct MyScene {
 ///     shader: String,
@@ -99,8 +99,8 @@ where
 ///     fn frame(&mut self, renderer: &Renderer, frame: &Frame) {}
 /// }
 ///
-/// fn main() -> Result<(), gpup::RunError> {
-///     gpup::try_run(MyScene::new)
+/// fn main() -> Result<(), granite::RunError> {
+///     granite::try_run(MyScene::new)
 /// }
 /// ```
 #[inline]

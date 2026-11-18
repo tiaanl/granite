@@ -1,10 +1,10 @@
 use glam::{Mat4, UVec2, Vec3, Vec4};
-use gpup_draw::{
+use granite_draw::{
     DepthBufferId, DrawListRenderer, FrameContext, MaterialId, MeshId, ShaderVisibility, UniformId,
     depth_buffer::DepthBufferSize,
     draw_list::{DrawList, RenderTarget},
 };
-use gpup_macros::{instance_buffer, uniform_buffer, vertex_buffer};
+use granite_macros::{instance_buffer, uniform_buffer, vertex_buffer};
 
 struct TerrainExample {
     draw_list_renderer: DrawListRenderer,
@@ -19,7 +19,7 @@ struct TerrainExample {
 }
 
 impl TerrainExample {
-    pub fn new(context: gpup::RunContext<'_>) -> Self {
+    pub fn new(context: granite::RunContext<'_>) -> Self {
         let renderer = context.renderer;
         let mut draw_list_renderer =
             DrawListRenderer::new(renderer.device().clone(), renderer.queue().clone());
@@ -101,8 +101,8 @@ impl TerrainExample {
             let vertex_shader = draw_list_renderer.create_vertex_shader(shader, "vertex");
             let fragment_shader = draw_list_renderer.create_fragment_shader(shader, "fragment");
 
-            let material = gpup_draw::Material::new(vertex_shader, fragment_shader)
-                .depth_buffer(depth_buffer, gpup_draw::DepthCompare::GreaterEqual)
+            let material = granite_draw::Material::new(vertex_shader, fragment_shader)
+                .depth_buffer(depth_buffer, granite_draw::DepthCompare::GreaterEqual)
                 .uniform(0, 0, camera_uniform)
                 .storage_buffer(0, 1, height_map_buffer, ShaderVisibility::Vertex);
             draw_list_renderer.create_material(material)
@@ -152,14 +152,14 @@ impl Camera {
     }
 }
 
-impl gpup::Scene for TerrainExample {
-    fn system_event(&mut self, event: &gpup::SystemEvent) {
-        if let gpup::SystemEvent::Resized(size) = event {
+impl granite::Scene for TerrainExample {
+    fn system_event(&mut self, event: &granite::SystemEvent) {
+        if let granite::SystemEvent::Resized(size) = event {
             self.new_size = Some(UVec2::from(size.to_array()));
         }
     }
 
-    fn frame(&mut self, _renderer: &gpup::Renderer, frame: &gpup::Frame) {
+    fn frame(&mut self, _renderer: &granite::Renderer, frame: &granite::Frame) {
         let mut draw_list = DrawList::default();
 
         if let Some(new_size) = self.new_size.take() {
@@ -186,6 +186,6 @@ impl gpup::Scene for TerrainExample {
     }
 }
 
-fn main() -> Result<(), gpup::RunError> {
-    gpup::run(TerrainExample::new)
+fn main() -> Result<(), granite::RunError> {
+    granite::run(TerrainExample::new)
 }

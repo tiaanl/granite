@@ -31,12 +31,12 @@ fn fragment(in: VertexOut) -> @location(0) vec4<f32> {
 ";
 
 struct Minimal {
-    app_handle: gpup::AppHandle,
+    app_handle: granite::AppHandle,
     pipeline: wgpu::RenderPipeline,
 }
 
 impl Minimal {
-    fn new(context: gpup::RunContext<'_>) -> Self {
+    fn new(context: granite::RunContext<'_>) -> Self {
         let renderer = context.renderer;
         let device = renderer.device();
 
@@ -83,19 +83,19 @@ impl Minimal {
     }
 }
 
-impl gpup::Scene for Minimal {
-    fn input(&mut self, event: &gpup::InputEvent) {
+impl granite::Scene for Minimal {
+    fn input(&mut self, event: &granite::InputEvent) {
         if matches!(
             event,
-            gpup::InputEvent::KeyUp {
-                key: gpup::KeyCode::Escape
+            granite::InputEvent::KeyUp {
+                key: granite::KeyCode::Escape
             }
         ) {
             self.app_handle.request_exit();
         }
     }
 
-    fn frame(&mut self, renderer: &gpup::Renderer, frame: &gpup::Frame) {
+    fn frame(&mut self, renderer: &granite::Renderer, frame: &granite::Frame) {
         let device = renderer.device();
 
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
@@ -124,6 +124,6 @@ impl gpup::Scene for Minimal {
     }
 }
 
-fn main() -> Result<(), gpup::RunError> {
-    gpup::run(Minimal::new)
+fn main() -> Result<(), granite::RunError> {
+    granite::run(Minimal::new)
 }

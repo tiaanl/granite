@@ -1,13 +1,13 @@
 use std::f32::consts::{PI, TAU};
 
 use glam::{Mat4, UVec2, Vec3};
-use gpup::{Frame, Renderer, Scene, SystemEvent};
-use gpup_draw::{
+use granite::{Frame, Renderer, Scene, SystemEvent};
+use granite_draw::{
     DepthBufferId, DepthCompare, DrawListRenderer, FrameContext, MaterialId, MeshId, UniformId,
     depth_buffer::DepthBufferSize,
     draw_list::{DrawList, RenderTarget},
 };
-use gpup_macros::{instance_buffer, uniform_buffer, vertex_buffer};
+use granite_macros::{instance_buffer, uniform_buffer, vertex_buffer};
 
 const SHADER: &str = r"
 struct VertexIn {
@@ -114,7 +114,7 @@ struct DepthExample {
 }
 
 impl DepthExample {
-    fn new(context: gpup::RunContext<'_>) -> Self {
+    fn new(context: granite::RunContext<'_>) -> Self {
         let renderer = context.renderer;
         let mut draw_list_renderer =
             DrawListRenderer::new(renderer.device().clone(), renderer.queue().clone());
@@ -190,8 +190,8 @@ impl Scene for DepthExample {
     }
 }
 
-fn main() -> Result<(), gpup::RunError> {
-    gpup::run(DepthExample::new)
+fn main() -> Result<(), granite::RunError> {
+    granite::run(DepthExample::new)
 }
 
 fn create_sphere_mesh(

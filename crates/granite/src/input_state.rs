@@ -11,10 +11,10 @@ pub use winit::{event::MouseButton, keyboard::KeyCode};
 /// Store this in your scene, forward events to [`Self::handle_event`], and
 /// call [`Self::end_frame`] after consuming the accumulated frame data.
 /// Clearing in `Scene::update` means transient data is no longer available to
-/// `Scene::frame`. The scene owns this timing; gpup never clears it automatically.
+/// `Scene::frame`. The scene owns this timing; granite never clears it automatically.
 ///
 /// ```
-/// use gpup::{Frame, InputEvent, InputState, Renderer, Scene};
+/// use granite::{Frame, InputEvent, InputState, Renderer, Scene};
 ///
 /// #[derive(Default)]
 /// struct MyScene {

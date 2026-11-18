@@ -609,7 +609,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "gpup"
+name = "granite"
 version = "0.1.0"
 dependencies = [
  "pollster",
@@ -620,21 +620,21 @@ dependencies = [
 ]
 
 [[package]]
-name = "gpup-draw"
+name = "granite-draw"
 version = "0.1.0"
 dependencies = [
  "encase",
  "generational-arena",
  "glam",
- "gpup",
- "gpup-macros",
+ "granite",
+ "granite-macros",
  "rand",
  "tracing",
  "wgpu",
 ]
 
 [[package]]
-name = "gpup-macros"
+name = "granite-macros"
 version = "0.1.0"
 dependencies = [
  "encase_derive_impl",

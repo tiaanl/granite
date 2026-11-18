@@ -1,10 +1,10 @@
 use glam::{Mat4, UVec2, Vec2};
-use gpup::{Frame, Renderer, Scene, SystemEvent};
-use gpup_draw::{
+use granite::{Frame, Renderer, Scene, SystemEvent};
+use granite_draw::{
     DrawListRenderer, FrameContext, MaterialId, MeshId, UniformId,
     draw_list::{DrawList, RenderTarget},
 };
-use gpup_macros::{instance_buffer, uniform_buffer, vertex_buffer};
+use granite_macros::{instance_buffer, uniform_buffer, vertex_buffer};
 
 const SHADER: &str = r"
 struct Uniforms {
@@ -73,7 +73,7 @@ impl ProjectionUniform {
 }
 
 impl Spline {
-    fn new(context: gpup::RunContext<'_>) -> Self {
+    fn new(context: granite::RunContext<'_>) -> Self {
         let renderer = context.renderer;
         let mut draw_list_renderer =
             DrawListRenderer::new(renderer.device().clone(), renderer.queue().clone());
@@ -154,8 +154,8 @@ impl Scene for Spline {
     }
 }
 
-fn main() -> Result<(), gpup::RunError> {
-    gpup::run(Spline::new)
+fn main() -> Result<(), granite::RunError> {
+    granite::run(Spline::new)
 }
 
 fn sample_catmull_rom_spline(points: &[Vec2], quality: f32) -> Vec<Vec2> {

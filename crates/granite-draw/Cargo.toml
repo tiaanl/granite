@@ -1,5 +1,5 @@
 [package]
-name = "gpup-draw"
+name = "granite-draw"
 version = "0.1.0"
 edition = "2024"
 
@@ -11,6 +11,6 @@ tracing.workspace = true
 wgpu.workspace = true
 
 [dev-dependencies]
-gpup = { path = "../gpup" }
-gpup-macros = { path = "../gpup-macros" }
+granite = { path = "../granite" }
+granite-macros = { path = "../granite-macros" }
 rand = "0.10.0"
